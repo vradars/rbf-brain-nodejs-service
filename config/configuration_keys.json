@@ -3,7 +3,6 @@
     "awsAccessKeyId": "XXXX", 
     "awsSecretAccessKey":"XXXX",  
 	"region" : "XXXX", 
-	"usersbucket": "XXXX", 
-    "ClientId" : "XXXX" 
+	"usersbucket": "XXXX" 
 }
 
