@@ -139,6 +139,81 @@ fs.readFile(`../users_data/${user_id}/rbf/${timestamp}.inp`, function (err, head
 
 }
 
+function uploadSimulationFile(user_id,timestamp,cb){
+
+
+var uploadParams = {
+    Bucket: config.usersbucket,
+    Key: '', // pass key
+    Body: null, // pass file body
+};
+
+    const params = uploadParams;
+
+fs.readFile(`../users_data/${user_id}/simulation/${timestamp}.png`, function (err, headBuffer) {
+                                                                    if (err) {
+                                                                        cb(err,'');
+                                                                    }
+                                                                    else {
+                                                                        params.Key = user_id + "/profile/simulation/" + timestamp + ".png";
+                                                                        params.Body = headBuffer;
+                                                                        // Call S3 Upload
+                                                                        s3.upload(params, (err, data) => {
+                                                                            if (err) {
+                                                                                cb(err,'');
+                                                                            }
+                                                                            else {
+                                                                                    cb('',data);
+                                                                            }
+                                                                        });
+
+                                                                    }
+                                                                })
+
+}
+
+function generateSimulationFile(user_id){
+        return new Promise((resolve,reject)=>{
+        // 1. Do Simulation 
+        // 2. Post Process Simulation
+        // 3. Store the file in DynamoDB
+
+                // Doing Simulation on generic brain.inp file
+                var cmd = `cd /home/ubuntu/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 brain.inp`
+                executeShellCommands(cmd).then((data)=>{
+
+                        // Doing Post Processing on simulation 
+                        var timestamp = Date.now();
+                        cmd = `mkdir -p ../users_data/${user_id}/simulation/ ; cd /home/ubuntu/paraview-image-write ; xvfb-run -a --server-args="-screen 0 1024x768x24" pvpython ~/paraview-image-write/ppr1.py /home/ubuntu/users_data/${user_id}/simulation/${timestamp}.png`;
+                        executeShellCommands(cmd).then((data)=>{
+                                        uploadSimulationFile(user_id,timestamp,(err,data)=>{
+                                        if(err){
+                                                        reject(err);
+                                        }
+                                                else{
+
+                                                        resolve(data);
+
+                                                }
+                                        })
+
+                        })
+                        .catch((error)=>{
+                                reject(error);
+                        })
+
+                }).catch((error)=>{
+                reject(error);
+
+                })
+
+        })
+
+
+}
+
+
+
 
 
 function generateINP(user_id){
@@ -250,6 +325,22 @@ app.post(`${apiPrefix}generateINF`, function(req, res){
         })
     })
 })
+app.post(`${apiPrefix}generateSimulation`, function(req, res){
+    console.log(req.body);
+    generateSimulationFile(req.body.user_id).then((d)=>{
+        res.send({
+            message : "success",
+            data : d
+        })
+    }).catch((err)=>{
+        console.log(err);
+        res.send({
+            message : "failure",
+            error : err
+        })
+    })
+})
+
 
 // Configuring port for APP
     const port = 3000;
