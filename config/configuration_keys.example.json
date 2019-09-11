@@ -1,8 +1,13 @@
 
 {
-    "awsAccessKeyId": "XXXX", 
-    "awsSecretAccessKey":"XXXX",  
-	"region" : "XXXX", 
-	"usersbucket": "XXXX" 
+    "awsAccessKeyId": "XXXXXXXXXXXXX",
+    "awsSecretAccessKey":"XXXXXXXXXXXX",
+	"avatar3dClientId":"XXXXXXXXXXXXXX",
+	"avatar3dclientSecret":"XXXXXXXXXXXXXXX",
+	"region" : "XXXXXXXXXXXXXX",
+	"usersbucket": "XXXXXXXXXXXX",
+    "apiVersion" :"XXXXXXXXXXXXXX"
+
+
 }
 
