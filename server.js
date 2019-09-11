@@ -261,7 +261,7 @@ function uploadGeneratedSelfieImage(obj,cb){
         }
         else {
             params.Key = `${obj.user_cognito_id}/profile/image/${obj.file_name}.png`;
-            params.Body = he/adBuffer;
+            params.Body = headBuffer;
             // Call S3 Upload
             s3.upload(params, (err, data) => {
                 if (err) {
@@ -463,7 +463,7 @@ function updateSimulationFileStatusInDB(obj,cb){
         Key: {
             "user_cognito_id": obj.user_cognito_id
         },
-        UpdateExpression: "is_selfie_simulation_file_uploaded = :is_selfie_simulation_file_uploaded",
+        UpdateExpression: "set is_selfie_simulation_file_uploaded = :is_selfie_simulation_file_uploaded",
         ExpressionAttributeValues: {
             ":is_selfie_simulation_file_uploaded" : true
         },
@@ -539,7 +539,7 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
                                 }
                                 else{
                                     // Generate INP File
-                                    generateINP(req.body.user_id)
+                                    generateINP(req.body.user_cognito_id)
                                     .then((d)=>{
 
                                         // Update Status of INP File generation
@@ -553,16 +553,11 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
 
                                             }
                                             else{
-
                                                 // Create Simulation File
-                                                generateSimulationFile(req.body,function(err,data){
-                                                    if(err){
-                                                        res.send({
-                                                            message : "failure",
-                                                            error : err
-                                                        })
-                                                    }
-                                                    else{
+						   
+						generateSimulationFile(req.body.user_cognito_id)
+						    .then((data)=>{
+						    
                                                         // Update status of simulation file
                                                         updateSimulationFileStatusInDB(req.body,function(err,data){
 
@@ -582,9 +577,13 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
 
 
                                                         });
-
-                                                    }
-                                                })
+						    })
+						    .catch((err)=>{
+						   		res.send({
+									message : "failure",
+								error : err
+								}); 
+						    })
                                             }
                                         })
 
