@@ -100,8 +100,17 @@ function executeShellCommands(cmd) {
 function generate3DModel(obj){
     console.log(obj);
     return new Promise((resolve, reject)=> {
-        console.log("\n",`python ${__dirname}/config/AvatarTest.py ${obj.image_url} ${config.avatar3dClientId} ${config.avatar3dclientSecret} ${obj.user_cognito_id}`);
-        executeShellCommands(`python ${__dirname}/config/AvatarTest.py ${obj.image_url} ${config.avatar3dClientId} ${config.avatar3dclientSecret} ${obj.user_cognito_id}`).then((data)=>{
+        
+
+	    const pythonProcess = spawn("python", [
+                        __dirname + "/config/AvatarTest.py",
+                        obj.image_url,
+                        config.avatar3dClientId,
+                        config.avatar3dclientSecret,
+                        obj.user_cognito_id
+                    ]);
+	    pythonProcess.stdout.on("data", data => {
+	    
             execFile('zip', ['-r', `./avatars/${obj.user_cognito_id}.zip`, `./avatars/${obj.user_cognito_id}/`], function(err, stdout) {
                 if(err){
                     console.log("ERROR in file upload ",err);
@@ -112,13 +121,23 @@ function generate3DModel(obj){
                     resolve(stdout);
                 }
             });
+	    })
+	pythonProcess.stderr.on("data", data => {
+                        console.log(`error:${data}`);
+                        reject(data);
 
-        })
-        .catch((error)=>{
-            console.log("ERROR Called");
-            reject(error);
-
-        })
+                    });
+                    pythonProcess.on("close", data => {
+                        if (data == "1" || data == 1) {
+                       	reject(data);
+			}
+                        console.log(`child process close with ${data}`)
+                    });
+	    
+	    
+	    
+	    
+	    
     })
 }
 
