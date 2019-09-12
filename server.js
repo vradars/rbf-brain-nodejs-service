@@ -8,7 +8,6 @@ AWS = require('aws-sdk'),
 cookieParser = require('cookie-parser'),
 fs = require("fs"),
 path = require("path"),
-config_env = require("./config/configuration_keys"),
 {spawn} = require('child_process'),
 multer = require('multer'),
 ms = require("ms"),
@@ -43,7 +42,19 @@ const apiPrefix = "/api/"
 // ======================================
 // Avatar Configuration
 
-var config = require("./config/configuration_keys");
+var config = {
+
+    "awsAccessKeyId": process.env.AWSACCESSKEYID,
+    "awsSecretAccessKey": process.env.AWSACCESSSECRETKEY,
+	"avatar3dClientId": process.env.AVATAR3DCLIENTID,
+	"avatar3dclientSecret": process.env.AVATAR3DCLIENTSECRET,
+	"region" : process.env.REGION,
+	"usersbucket": process.env.USERSBUCKET,
+    "apiVersion" : process.env.APIVERSION
+
+};
+
+var config_env = config ; 
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -57,7 +68,6 @@ var upload = multer({
     storage: storage
 });
 
-const awsWorker = require('./controllers/aws.controller.js');
 var s3 = new AWS.S3();
 
 const docClient = new AWS.DynamoDB.DocumentClient({
