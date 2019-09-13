@@ -8,7 +8,6 @@ AWS = require('aws-sdk'),
 cookieParser = require('cookie-parser'),
 fs = require("fs"),
 path = require("path"),
-config_env = require("./config/configuration_keys"),
 {spawn} = require('child_process'),
 multer = require('multer'),
 ms = require("ms"),
@@ -43,7 +42,19 @@ const apiPrefix = "/api/"
 // ======================================
 // Avatar Configuration
 
-var config = require("./config/configuration_keys");
+var config = {
+
+    "awsAccessKeyId": process.env.AWSACCESSKEYID,
+    "awsSecretAccessKey": process.env.AWSACCESSSECRETKEY,
+	"avatar3dClientId": process.env.AVATAR3DCLIENTID,
+	"avatar3dclientSecret": process.env.AVATAR3DCLIENTSECRET,
+	"region" : process.env.REGION,
+	"usersbucket": process.env.USERSBUCKET,
+    "apiVersion" : process.env.APIVERSION
+
+};
+
+var config_env = config ; 
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -57,7 +68,6 @@ var upload = multer({
     storage: storage
 });
 
-const awsWorker = require('./controllers/aws.controller.js');
 var s3 = new AWS.S3();
 
 const docClient = new AWS.DynamoDB.DocumentClient({
@@ -90,8 +100,17 @@ function executeShellCommands(cmd) {
 function generate3DModel(obj){
     console.log(obj);
     return new Promise((resolve, reject)=> {
-        console.log("\n",`python ${__dirname}/config/AvatarTest.py ${obj.image_url} ${config.avatar3dClientId} ${config.avatar3dclientSecret} ${obj.user_cognito_id}`);
-        executeShellCommands(`python ${__dirname}/config/AvatarTest.py ${obj.image_url} ${config.avatar3dClientId} ${config.avatar3dclientSecret} ${obj.user_cognito_id}`).then((data)=>{
+        
+
+	    const pythonProcess = spawn("python", [
+                        __dirname + "/config/AvatarTest.py",
+                        obj.image_url,
+                        config.avatar3dClientId,
+                        config.avatar3dclientSecret,
+                        obj.user_cognito_id
+                    ]);
+	    pythonProcess.stdout.on("data", data => {
+	    
             execFile('zip', ['-r', `./avatars/${obj.user_cognito_id}.zip`, `./avatars/${obj.user_cognito_id}/`], function(err, stdout) {
                 if(err){
                     console.log("ERROR in file upload ",err);
@@ -102,13 +121,23 @@ function generate3DModel(obj){
                     resolve(stdout);
                 }
             });
+	    })
+	pythonProcess.stderr.on("data", data => {
+                        console.log(`error:${data}`);
+                        reject(data);
 
-        })
-        .catch((error)=>{
-            console.log("ERROR Called");
-            reject(error);
-
-        })
+                    });
+                    pythonProcess.on("close", data => {
+                        if (data == "1" || data == 1) {
+                       	reject(data);
+			}
+                        console.log(`child process close with ${data}`)
+                    });
+	    
+	    
+	    
+	    
+	    
     })
 }
 
