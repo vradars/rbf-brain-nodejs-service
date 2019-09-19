@@ -54,7 +54,7 @@ var config = {
 
 };
 
-var config_env = config ; 
+var config_env = config ;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -100,7 +100,7 @@ function executeShellCommands(cmd) {
 function generate3DModel(obj){
     console.log(obj);
     return new Promise((resolve, reject)=> {
-        
+
 
 	    const pythonProcess = spawn("python", [
                         __dirname + "/config/AvatarTest.py",
@@ -110,7 +110,7 @@ function generate3DModel(obj){
                         obj.user_cognito_id
                     ]);
 	    pythonProcess.stdout.on("data", data => {
-	    
+
             execFile('zip', ['-r', `./avatars/${obj.user_cognito_id}.zip`, `./avatars/${obj.user_cognito_id}/`], function(err, stdout) {
                 if(err){
                     console.log("ERROR in file upload ",err);
@@ -133,11 +133,11 @@ function generate3DModel(obj){
 			}
                         console.log(`child process close with ${data}`)
                     });
-	    
-	    
-	    
-	    
-	    
+
+
+
+
+
     })
 }
 
@@ -507,7 +507,169 @@ function updateSimulationFileStatusInDB(obj,cb){
     })
 
 }
+function getCumulativeEventPressureData(){
+    var myObject = {
+        message : "success",
+        data : { pressure : [241, 292, 125, 106, 282, 171, 58, 37, 219, 263],
+                time_label : [0,5,10,15,20,25,30,35,40,45],
+                timestamp : Number(Date.now()).toString()
+            }
+    }
+    return myObject;
+}
 
+function getCumulativeEventLoadData(){
+    var myObject = {
+        message : "success",
+        data : { load : [{dataset : [198, 69, 109, 139, 73]}
+                        ,{dataset : [28, 113, 31, 10, 148]}
+                        ,{dataset : [28, 2, 1, 10, 148]}
+                        ,{dataset : [182, 3, 16, 97, 240]}
+                    ],
+
+                time_label : ["W1","W2","W3","W4","W5"],
+                timestamp : Number(Date.now()).toString()
+            }
+    }
+    return myObject;
+}
+
+function getHeadAccelerationEvents(){
+    var myObject = {
+        message : "success",
+        data : {
+            pressure : [176, 267, 187, 201, 180, 4, 230, 258, 14, 21, 89, 23, 119, 113, 28, 49],
+            time_label : [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75],
+            timestamp : Number(Date.now()).toString()
+            }
+        }
+        return myObject;
+
+}
+
+function getTeamAdminData(){
+    var myObject = {
+	message: "success",
+	data: {
+		organization: "York tech Football",
+		sports_type: "football",
+		roster_count: 3,
+		impacts: 4,
+		avg_load: 6,
+		alerts: 8,
+        highest_load : 0.046,
+        most_impacts : 7
+	   }
+    }
+    return myObject;
+}
+
+function getImpactSummary(){
+    var myObject =
+    {
+        message : "success",
+        data : {
+            pressure : [0,0,0.1,0.5,0.2],
+            force : ["20-29g", "30-39g", "40-49g", "50-59g", "60-69g"]
+        }
+    }
+    return myObject ;
+}
+
+function getImpactHistory(){
+    var myObject =
+    {
+        message : "success",
+        data : {
+            pressure : [0.2,0.5,1.0,0.5,0.2,0.5,0.1],
+            force : ["20-29g", "30-39g", "40-49g", "50-59g", "60-69g","70-79g","80-89g"]
+        }
+    }
+    return myObject ;
+
+}
+
+function getPlayersData(){
+    var myObject = {
+        message : "success",
+        data : [
+    {
+        player_name : "Player 1",
+        sport : "Football",
+        position : "RB",
+        alerts : 2,
+        impacts : 4,
+        load : 0.34
+    },
+    {
+        player_name : "Player 1",
+        sport : "Football",
+        position : "RB",
+        alerts : 2,
+        impacts : 4,
+        load : 0.32
+    },
+    {
+        player_name : "Player 2",
+        sport : "Football",
+        position : "FA",
+        alerts : 2,
+        impacts : 8,
+        load : 0.31
+    }
+    ]
+    }
+
+    return myObject ;
+
+}
+
+function getOrganizationAdminData(){
+    var myObject = {
+	message: "success",
+	data: {
+		organization: "York tech Football",
+		sports_type: "football",
+		roster_count: 3,
+		impacts: 4,
+		avg_load: 6,
+		alerts: 8,
+        highest_load : 0.046,
+        most_impacts : 7
+	   }
+    }
+    return myObject ;
+}
+
+function getAllRosters(){
+
+    var myObject = {
+        message : "success",
+        data : {rosters : ["Roster 1", "Roster 2", "Roster 3", "Roster 4"]
+        }
+    }
+
+    return myObject ;
+
+}
+
+function addTeam(){
+    var myObject = {
+        message : "success"
+
+    }
+
+    return myObject ;
+}
+
+function deleteTeam(){
+    var myObject = {
+        message : "success"
+
+    }
+
+    return myObject ;
+}
 
 // Clearing the cookies
 app.get(`/`, (req, res) => {
@@ -583,10 +745,10 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
                                             }
                                             else{
                                                 // Create Simulation File
-						   
+
 						generateSimulationFile(req.body.user_cognito_id)
 						    .then((data)=>{
-						    
+
                                                         // Update status of simulation file
                                                         updateSimulationFileStatusInDB(req.body,function(err,data){
 
@@ -611,7 +773,7 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
 						   		res.send({
 									message : "failure",
 								error : err
-								}); 
+								});
 						    })
                                             }
                                         })
@@ -679,6 +841,69 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
                 error : err
             })
         })
+    })
+    app.post(`${apiPrefix}getCumulativeEventPressureData`, function(req, res){
+
+        res.send(getCumulativeEventPressureData());
+    })
+
+    app.post(`${apiPrefix}getCumulativeEventLoadData`, function(req, res){
+
+        res.send(getCumulativeEventLoadData());
+    })
+
+    app.post(`${apiPrefix}getHeadAccelerationEvents`, function(req, res){
+
+        res.send(getHeadAccelerationEvents());
+
+    })
+
+    app.post(`${apiPrefix}getTeamAdminData`, function(req, res){
+
+        res.send(getTeamAdminData());
+
+    })
+
+    app.post(`${apiPrefix}getImpactSummary`, function(req, res){
+
+        res.send(getImpactSummary());
+
+    })
+
+    app.post(`${apiPrefix}getImpactHistory`, function(req, res){
+
+        res.send(getImpactHistory());
+
+    })
+
+    app.post(`${apiPrefix}getPlayersData`, function(req, res){
+
+        res.send(getPlayersData());
+
+    })
+
+    app.post(`${apiPrefix}getOrganizationAdminData`, function(req, res){
+
+        res.send(getOrganizationAdminData());
+
+    })
+
+    app.post(`${apiPrefix}getAllRosters`, function(req, res){
+
+        res.send(getAllRosters());
+
+    })
+
+    app.post(`${apiPrefix}addTeam`, function(req, res){
+
+        res.send(addTeam());
+
+    })
+
+    app.post(`${apiPrefix}deleteTeam`, function(req, res){
+
+        res.send(deleteTeam());
+
     })
 
 
