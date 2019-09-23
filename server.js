@@ -54,6 +54,7 @@ var config = {
 
 };
 
+
 var config_env = config ;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
@@ -76,6 +77,14 @@ const docClient = new AWS.DynamoDB.DocumentClient({
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+
+// ===========================================
+//     UTILITY FUNCTIONS
+// ===========================================
+
+function concatArrays(arrays) {
+    return [].concat.apply([], arrays);
+}
 
 
 // ======================================
@@ -653,22 +662,183 @@ function getAllRosters(){
 
 }
 
-function addTeam(){
-    var myObject = {
-        message : "success"
+function addTeam(obj){
 
-    }
+    return new Promise((resolve,reject)=>{
+        var dbInsert = {
+            TableName: "teams",
+            Item: obj
+        };
+        docClient.put(dbInsert, function (err, data) {
+            if (err) {
 
-    return myObject ;
+                reject(err)
+
+            } else {
+
+                resolve(data)
+            }
+        });
+    })
+
 }
 
-function deleteTeam(){
-    var myObject = {
-        message : "success"
+function deleteTeam(obj) {
+    console.log("IN delete functionality");
+    return new Promise((resolve, reject)=>{
+        let params = {
+            TableName: "teams",
+            Key: {
+                "organization": obj.organization,
+                "team_name" : obj.team_name
+            }
+        };
+        docClient.delete(params, function(err, data) {
+            if (err){
+                reject(err)
+            }
+            else{
+                resolve(data)
+            }
+        });
+    })
+}
 
-    }
+function fetchAllTeamsInOrganization(org){
+    return new Promise((resolve,reject)=>{
+        let params = {
+        TableName: 'teams',
+        KeyConditionExpression: "organization = :organization",
+        ExpressionAttributeValues: {
+            ":organization": org
+        }
+    };
+    var item = [];
+       docClient.query(params).eachPage((err, data, done) => {
+           if (err) {
+               reject(err);
+           }
+           if (data == null) {
+               resolve(concatArrays(item))
+           } else {
+               item.push(data.Items);
+           }
+           done();
+       });
+    })
 
-    return myObject ;
+}
+
+function deleteTeamFromOrganizationList(org, team_name) {
+    return new Promise((resolve, reject)=>{
+        let params = {
+            TableName: "teams",
+            Key: {
+                "organization": org,
+                "team_name" : "teams"
+            }
+        };
+        docClient.get(params, function (err, data) {
+            if (err) {
+                reject(err)
+            }
+            else {
+
+                var item = data.Item ;
+                var updatedList = item.team_list.filter(function(team) {
+                        return team != team_name;
+                });
+                console.log(updatedList);
+                var dbInsert = {
+                    TableName: "teams",
+                                    Key: { "organization" : org,
+                                           "team_name" : "teams"
+                                       },
+                                    UpdateExpression: "set #list = :newItem ",
+                                    ExpressionAttributeNames: {
+                                        "#list": "team_list"
+                                    },
+                                    ExpressionAttributeValues: {
+                                        ":newItem": updatedList
+                                    },
+                                    ReturnValues: "UPDATED_NEW"
+                }
+                docClient.update(dbInsert, function (err, data) {
+                    if (err) {
+                        console.log("ERROR WHILE DELETING DATA",err);
+                        reject(err);
+
+                    } else {
+                        resolve(data)
+                    }
+                });
+            }
+        })
+    })
+}
+
+function addTeamToOrganizationList(org, team_name) {
+    return new Promise((resolve, reject)=>{
+        // if flag is true it means data array is to be created
+        let params = {
+            TableName: "teams",
+            Key: {
+                "organization": org,
+                "team_name" : "teams"
+            }
+        };
+        docClient.get(params, function (err, data) {
+            if (err) {
+                reject(err)
+            }
+            else {
+                console.log("DATA IS ADD USER TO ORG ", data);
+                if (Object.keys(data).length == 0 && data.constructor === Object) {
+                    var dbInsert = {
+                        TableName: "teams",
+                        Item: { organization : org,
+                                team_name : "teams",
+                                team_list : [team_name] }
+                    };
+                    docClient.put(dbInsert, function (err, data) {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+
+                        } else {
+                            resolve(data)
+                        }
+                    });
+                }
+                else {
+                    var dbInsert = {
+                        TableName: "teams",
+                                        Key: { "organization" : org,
+                                               "team_name" : "teams"
+                                           },
+                                        UpdateExpression: "set #list = list_append(#list, :newItem)",
+                                        ExpressionAttributeNames: {
+                                            "#list": "team_list"
+                                        },
+                                        ExpressionAttributeValues: {
+                                            ":newItem": [team_name]
+                                        },
+                                        ReturnValues: "UPDATED_NEW"
+                    }
+
+                    docClient.update(dbInsert, function (err, data) {
+                        if (err) {
+                            console.log("ERROR WHILE CREATING DATA",err);
+                            reject(err);
+
+                        } else {
+                            resolve(data)
+                        }
+                    });
+                }
+            }
+        });
+    })
 }
 
 // Clearing the cookies
@@ -895,20 +1065,63 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
     })
 
     app.post(`${apiPrefix}addTeam`, function(req, res){
+        addTeam(req.body)
+        .then(data => {
+                // Adding user to organization
+                return new addTeamToOrganizationList(req.body.organization, req.body.team_name)
+        })
+        .then(d => {
+                res.send({
+                    message : "success"
+                })
+        })
+        .catch(err => {
+            res.send({
+                message : "failure",
+                error : err
+            })
+        })
 
-        res.send(addTeam());
+    })
+
+    app.post(`${apiPrefix}fetchAllTeamsInOrganization`, function(req, res){
+        fetchAllTeamsInOrganization(req.body)
+        .then(list => {
+                res.send({
+                    message : "success",
+                    data : list
+                })
+        })
+        .catch(err => {
+            res.send({
+                message : "failure",
+                error : err
+            })
+        })
 
     })
 
     app.post(`${apiPrefix}deleteTeam`, function(req, res){
-
-        res.send(deleteTeam());
-
+        deleteTeam(req.body)
+        .then(d => {
+                return new deleteTeamFromOrganizationList(req.body.organization, req.body.team_name)
+        })
+        .then(d => {
+            res.send({
+                message : "success"
+            })
+        })
+        .catch(err => {
+            res.send({
+                message : "failure",
+                error : err
+            })
+        })
     })
 
 
     // Configuring port for APP
-    const port = 3000;
+    const port = 3002;
     const server = app.listen(port, function () {
         console.log('Magic happens on ' + port);
     });
