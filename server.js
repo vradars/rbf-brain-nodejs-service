@@ -54,7 +54,6 @@ var config = {
 
 };
 
-
 var config_env = config ;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
@@ -671,7 +670,7 @@ function addTeam(obj){
         };
         docClient.put(dbInsert, function (err, data) {
             if (err) {
-
+                console.log(err);
                 reject(err)
 
             } else {
@@ -1085,11 +1084,15 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
     })
 
     app.post(`${apiPrefix}fetchAllTeamsInOrganization`, function(req, res){
-        fetchAllTeamsInOrganization(req.body)
+        fetchAllTeamsInOrganization(req.body.organization)
         .then(list => {
+            var teamList = list.filter(function(team) {
+
+                return (!("team_list" in team));
+            });
                 res.send({
                     message : "success",
-                    data : list
+                    data : teamList
                 })
         })
         .catch(err => {
@@ -1121,7 +1124,7 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
 
 
     // Configuring port for APP
-    const port = 3002;
+    const port = 3000;
     const server = app.listen(port, function () {
         console.log('Magic happens on ' + port);
     });
