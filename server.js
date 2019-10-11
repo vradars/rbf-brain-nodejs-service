@@ -55,8 +55,8 @@ var config = {
 };
 
 var config_env = config ;
-// var config = require('./config/configuration_keys.json');
-// config_env = config;
+//var config = require('./config/configuration_keys.json');
+//config_env = config;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -887,6 +887,30 @@ function getCumulativeAccelerationData(player_id){
     })
 }
 
+function getCumulativeSensorData(player_id){
+    return new Promise((resolve,reject)=>{
+        let params = {
+            TableName: 'sensor_data',
+            KeyConditionExpression: "player_id = :player_id",
+            ExpressionAttributeValues: {
+                ":player_id": player_id
+            }
+        };
+        var item = [];
+        docClient.query(params).eachPage((err, data, done) => {
+            if (err) {
+                reject(err);
+            }
+            if (data == null) {
+                resolve(concatArrays(item))
+            } else {
+                item.push(data.Items);
+            }
+            done();
+        });
+    })
+}
+
 function customInsertionSortForGraphData(arr , arr1){
     // arr needs to be the Y-AXIS of the graph
     // arr1 is X-AXIS of the graph
@@ -943,6 +967,25 @@ function getPlayersInList(list){
     return Array.from( playerMap.values() );
 
 }
+
+function indexOfMax(arr) {
+    if (arr.length === 0) {
+        return -1;
+    }
+
+    var max = arr[0];
+    var maxIndex = 0;
+
+    for (var i = 1; i < arr.length; i++) {
+        if (arr[i] > max) {
+            maxIndex = i;
+            max = arr[i];
+        }
+    }
+
+    return maxIndex;
+}
+
 
 // Clearing the cookies
 app.get(`/`, (req, res) => {
@@ -1268,6 +1311,74 @@ app.post(`${apiPrefix}getOrganizationAdminData`, function(req, res){
 app.post(`${apiPrefix}getAllRosters`, function(req, res){
 
     res.send(getAllRosters());
+
+})
+
+
+app.post(`${apiPrefix}getSimulationDataOfPlayer`, function(req, res){
+    // GET JSON data
+    // PARSE THE DATA IN REQUIRED FORMAT
+    // ======================== EXAMPLE FORMAT IS GIVEN =======================
+    // {
+    // "player": {
+    // 	"name": "harry",
+    // 	"position": "OL"
+    // },
+    // "simulation": {
+    // 	"mesh": "brain.inp",
+    // 	"linear-acceleration": [80.0, 0.0, 0.0],
+    // 	"angular-acceleration": 8000.0,
+    // 	"time-peak-acceleration": 1.0e-5,
+    // 	"maximum-time": 2.0e-5,
+    // 	"impact-point": "front-low"
+    // }
+    // }
+    //=========================================================================
+    // STORE IT IN TMP filter
+    // CALL THE MPIRUN AND EXECUTE
+    getCumulativeSensorData(req.body.player_id)
+    .then(d => {
+        var playerData = {
+            "player": {
+                "name": "",
+                "position": ""
+            },
+            "simulation": {
+                "mesh": "brain.inp",
+                "linear-acceleration": [0.0, 0.0, 0.0],
+                "angular-acceleration": 0.0,
+                "time-peak-acceleration": 1.0e-5,
+                "maximum-time": 2.0e-5,
+                "impact-point": ""
+            }
+        }
+
+        let linear_accelerations = d.map(function (impact_data) {
+            return impact_data.linear_acceleration_pla_
+        });
+        // Max Linear Accelearation Impact data
+        let index = indexOfMax(linear_accelerations);
+        playerData["player"]["name"] = d[index].player_id ;
+        playerData["player"]["position"] = d[index].position.toLowerCase() ;
+        playerData["simulation"]["linear-acceleration"][0] = d[index].linear_acceleration_pla_ ;
+        playerData["simulation"]["angular-acceleration"] = d[index].angular_acceleration_paa ;
+        playerData["simulation"]["impact-point"] = d[index].impact_location_on_head.toLowerCase() ;
+        // STORE THE ABOVE DATA IN TMP/PLAYERID/TIMESTAMP.json
+        // EXECUTE THE MPIRUN COMMAND & EXECUTE THE PVPYTHON MODULE COMMAND
+        // GENERATE THE SCREENSHOT PNG AND UPLOAD IT IN S3 BUCKET
+
+        res.send({
+            message : "success",
+            data : playerData
+        })
+    })
+    .catch(err => {
+        res.send({
+            message : "failure",
+            error  : err
+        })
+    })
+
 
 })
 
