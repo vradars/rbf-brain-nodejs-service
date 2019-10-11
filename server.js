@@ -985,6 +985,20 @@ function indexOfMax(arr) {
 
     return maxIndex;
 }
+function writeJsonToFile(path, jsonObject){
+
+    return new Promise((resolve, reject) => {
+        fs.writeFile(path, jsonObject, (err) => {
+            if (err) {
+                reject(err);
+            }
+            else{
+                resolve(true);
+            }
+        });
+    })
+}
+
 
 
 // Clearing the cookies
@@ -1363,13 +1377,41 @@ app.post(`${apiPrefix}getSimulationDataOfPlayer`, function(req, res){
         playerData["simulation"]["linear-acceleration"][0] = d[index].linear_acceleration_pla_ ;
         playerData["simulation"]["angular-acceleration"] = d[index].angular_acceleration_paa ;
         playerData["simulation"]["impact-point"] = d[index].impact_location_on_head.toLowerCase() ;
-        // STORE THE ABOVE DATA IN TMP/PLAYERID/TIMESTAMP.json
-        // EXECUTE THE MPIRUN COMMAND & EXECUTE THE PVPYTHON MODULE COMMAND
-        // GENERATE THE SCREENSHOT PNG AND UPLOAD IT IN S3 BUCKET
 
-        res.send({
-            message : "success",
-            data : playerData
+        let file_path = `/tmp/${req.body.player_id}/`;
+        let file_name = `${Number(Date.now()).toString()}.json`;
+        executeShellCommands(`mkdir -p ${file_path}`)
+        .then(d => {
+
+            // STORE THE ABOVE DATA IN TMP/PLAYERID/TIMESTAMP.json
+            return writeJsonToFile(file_path + file_name, playerData)
+
+        })
+        .then(d =>{
+
+            // EXECUTE THE MPIRUN COMMAND
+            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${file_path + file_name}`
+            return executeShellCommands(cmd)
+
+        })
+        .then(d =>{
+
+            // EXECUTE PVPYTHON MODULE TO GENERATE THE SCREENSHOT .PNG
+            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; xvfb-run pvpython multiViewPorts.py Merged.vtk maxstrain.dat`
+            return executeShellCommands(cmd)
+
+        })
+        .then(d =>{
+            // Upload the file on S3 bucket
+            res.send({
+                message : "success"
+            })
+        })
+        .catch(err => {
+            res.send({
+                message : "failure",
+                error : err
+            });
         })
     })
     .catch(err => {
