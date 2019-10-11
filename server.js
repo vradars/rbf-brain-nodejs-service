@@ -998,7 +998,38 @@ function writeJsonToFile(path, jsonObject){
         });
     })
 }
+function uploadPlayerSimulationFile(user_id, file_path, file_name){
 
+return new Promise((resolve, reject)=>{
+    var uploadParams = {
+        Bucket: config.usersbucket,
+        Key: '', // pass key
+        Body: null, // pass file body
+    };
+
+    const params = uploadParams;
+
+    fs.readFile(file_path, function (err, headBuffer) {
+        if (err) {
+          reject(err); 
+        }
+        else {
+            params.Key = user_id + "/profile/simulation/" + file_name ;
+            params.Body = headBuffer;
+            // Call S3 Upload
+            s3.upload(params, (err, data) => {
+                if (err) {
+                  reject(err);
+                }
+                else {
+                  resolve(data);
+                }
+            });
+
+        }
+    })
+  })
+}
 
 
 // Clearing the cookies
@@ -1329,7 +1360,7 @@ app.post(`${apiPrefix}getAllRosters`, function(req, res){
 })
 
 
-app.post(`${apiPrefix}getSimulationDataOfPlayer`, function(req, res){
+app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
     // GET JSON data
     // PARSE THE DATA IN REQUIRED FORMAT
     // ======================== EXAMPLE FORMAT IS GIVEN =======================
@@ -1378,8 +1409,9 @@ app.post(`${apiPrefix}getSimulationDataOfPlayer`, function(req, res){
         playerData["simulation"]["angular-acceleration"] = d[index].angular_acceleration_paa ;
         playerData["simulation"]["impact-point"] = d[index].impact_location_on_head.toLowerCase() ;
 
-        let file_path = `/tmp/${req.body.player_id}/`;
-        let file_name = `${Number(Date.now()).toString()}.json`;
+        let file_path = `/tmp/${req.body.player_id.split(" ").join("-")}/`;
+        let timestamp = Number(Date.now()).toString();
+        let file_name = `${timestamp}.json`;
         executeShellCommands(`mkdir -p ${file_path}`)
         .then(d => {
 
@@ -1403,9 +1435,16 @@ app.post(`${apiPrefix}getSimulationDataOfPlayer`, function(req, res){
         })
         .then(d =>{
             // Upload the file on S3 bucket
-            res.send({
-                message : "success"
-            })
+            let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/screenshot.png`
+          return uploadPlayerSimulationFile(req.body.player_id.split(" ").join("-"), simulationFilePath, timestamp + ".png")
+
+        })
+        .then(d =>{
+            console.log(d);
+          res.send({
+            message : "success",
+            data  : d
+          })
         })
         .catch(err => {
             res.send({
