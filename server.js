@@ -1011,7 +1011,7 @@ return new Promise((resolve, reject)=>{
 
     fs.readFile(file_path, function (err, headBuffer) {
         if (err) {
-          reject(err); 
+          reject(err);
         }
         else {
             params.Key = user_id + "/profile/simulation/" + file_name ;
@@ -1226,7 +1226,7 @@ app.post(`${apiPrefix}getCumulativeAccelerationData`, function(req, res){
     getCumulativeAccelerationData(req.body.player_id)
     .then(data => {
         let linear_accelerations = data.map(function (impact_data) {
-            return impact_data.linear_acceleration_pla_
+            return impact_data.linear_acceleration_pla
         });
 
         let angular_accelerations = data.map(function (impact_data) {
@@ -1278,7 +1278,7 @@ app.post(`${apiPrefix}getCumulativeAccelerationTimeData`, function(req, res){
     getCumulativeAccelerationData(req.body.player_id)
     .then(data => {
         let linear_accelerations = data.map(function (impact_data) {
-            return impact_data.linear_acceleration_pla_
+            return impact_data.linear_acceleration_pla
         });
 
         // X- Axis Linear Acceleration
@@ -1399,13 +1399,13 @@ app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
         }
 
         let linear_accelerations = d.map(function (impact_data) {
-            return impact_data.linear_acceleration_pla_
+            return impact_data.linear_acceleration_pla
         });
         // Max Linear Accelearation Impact data
         let index = indexOfMax(linear_accelerations);
         playerData["player"]["name"] = d[index].player_id ;
         playerData["player"]["position"] = d[index].position.toLowerCase() ;
-        playerData["simulation"]["linear-acceleration"][0] = d[index].linear_acceleration_pla_ ;
+        playerData["simulation"]["linear-acceleration"][0] = d[index].linear_acceleration_pla ;
         playerData["simulation"]["angular-acceleration"] = d[index].angular_acceleration_paa ;
         playerData["simulation"]["impact-point"] = d[index].impact_location_on_head.toLowerCase() ;
 
