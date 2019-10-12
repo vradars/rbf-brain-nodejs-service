@@ -1408,8 +1408,9 @@ app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
         playerData["simulation"]["linear-acceleration"][0] = d[index].linear_acceleration_pla ;
         playerData["simulation"]["angular-acceleration"] = d[index].angular_acceleration_paa ;
         playerData["simulation"]["impact-point"] = d[index].impact_location_on_head.toLowerCase() ;
-
-        let file_path = `/tmp/${req.body.player_id.split(" ").join("-")}/`;
+        console.log("PLAYER DATA PARSED IS ", playerData);    
+        let p_id = req.body.player_id.split(" ").join("-");
+        let file_path = `/tmp/${p_id}/`;
         let timestamp = Number(Date.now()).toString();
         let file_name = `${timestamp}.json`;
         executeShellCommands(`mkdir -p ${file_path}`)
@@ -1428,15 +1429,15 @@ app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
         })
         .then(d =>{
 
-            // EXECUTE PVPYTHON MODULE TO GENERATE THE SCREENSHOT .PNG
-            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; xvfb-run pvpython multiViewPorts.py Merged.vtk maxstrain.dat`
+            // EXECUTE MERGEPOLYDATA PNG
+            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${ p_id + timestamp }.png`
             return executeShellCommands(cmd)
 
         })
         .then(d =>{
             // Upload the file on S3 bucket
-            let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/screenshot.png`
-          return uploadPlayerSimulationFile(req.body.player_id.split(" ").join("-"), simulationFilePath, timestamp + ".png")
+            let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${ p_id + timestamp }.png`
+            return uploadPlayerSimulationFile(req.body.player_id.split(" ").join("-"), simulationFilePath, timestamp + ".png")
 
         })
         .then(d =>{
