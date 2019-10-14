@@ -999,7 +999,7 @@ function writeJsonToFile(path, jsonObject){
         });
     })
 }
-function uploadPlayerSimulationFile(user_id, file_path, file_name){
+function uploadPlayerSimulationFile(user_id, file_path, file_name, date){
 
 return new Promise((resolve, reject)=>{
     var uploadParams = {
@@ -1015,7 +1015,7 @@ return new Promise((resolve, reject)=>{
           reject(err);
         }
         else {
-            params.Key = user_id + "/profile/simulation/" + file_name ;
+            params.Key = user_id + `/${date}/simulation/` + file_name ;
             params.Body = headBuffer;
             // Call S3 Upload
             s3.upload(params, (err, data) => {
@@ -1360,6 +1360,79 @@ app.post(`${apiPrefix}getAllRosters`, function(req, res){
 
 })
 
+function generateSimulationForPlayer(obj, index){
+    return new Promise((reject, resolve)=>{
+        var playerData = {
+            "player": {
+                "name": "",
+                "position": ""
+            },
+            "simulation": {
+                "mesh": "brain.inp",
+                "linear-acceleration": [0.0, 0.0, 0.0],
+                "angular-acceleration": 0.0,
+                "time-peak-acceleration": 1.0e-5,
+                "maximum-time": 2.0e-5,
+                "impact-point": ""
+            }
+        }
+
+        // Max Linear Accelearation Impact data
+
+        playerData["player"]["name"] = obj.player_id ;
+        playerData["player"]["position"] = obj.position.toLowerCase() ;
+        playerData["simulation"]["linear-acceleration"][0] = obj.linear_acceleration_pla ;
+        playerData["simulation"]["angular-acceleration"] = obj.angular_acceleration_paa ;
+        playerData["simulation"]["impact-point"] = obj.impact_location_on_head.toLowerCase() ;
+        console.log("PLAYER DATA PARSED IS ", playerData);
+        let p_id = obj.player_id.split(" ").join("-");
+        let file_path = `/tmp/${p_id}/`;
+        let timestamp = Number(Date.now()).toString();
+        let file_name = `${timestamp}.json`;
+        executeShellCommands(`mkdir -p ${file_path}`)
+        .then(d => {
+
+            // STORE THE ABOVE DATA IN TMP/PLAYERID/TIMESTAMP.json
+            return writeJsonToFile(file_path + file_name, playerData)
+
+        })
+        .then(d =>{
+
+            // EXECUTE THE MPIRUN COMMAND
+            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ./tmp/${ p_id + obj.date.split("/").join("-") + "_" + index }`
+            return executeShellCommands(cmd)
+
+        })
+        .then(d =>{
+
+            // EXECUTE MERGEPOLYDATA PNG
+            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ./tmp/${ p_id + obj.date.split("/").join("-") + "_" + index }.png`
+            return executeShellCommands(cmd)
+
+        })
+        .then(d =>{
+            // Upload the file on S3 bucket
+            let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/tmp/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
+            return uploadPlayerSimulationFile(req.body.player_id.split(" ").join("-"), simulationFilePath, `${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`, obj.date.split("/").join("-"))
+
+        })
+        .then(d =>{
+            console.log(d);
+          resolve({
+            message : "success",
+            data  : d
+          })
+        })
+        .catch(err => {
+            console.log(err);
+            reject({
+                message : "failure",
+                error : err
+            });
+        })
+    })
+
+}
 
 app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
     // GET JSON data
@@ -1382,78 +1455,40 @@ app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
     //=========================================================================
     // STORE IT IN TMP filter
     // CALL THE MPIRUN AND EXECUTE
-    getCumulativeSensorData(req.body.player_id)
-    .then(d => {
-        var playerData = {
-            "player": {
-                "name": "",
-                "position": ""
-            },
-            "simulation": {
-                "mesh": "brain.inp",
-                "linear-acceleration": [0.0, 0.0, 0.0],
-                "angular-acceleration": 0.0,
-                "time-peak-acceleration": 1.0e-5,
-                "maximum-time": 2.0e-5,
-                "impact-point": ""
-            }
+    getCumulativeSensorData(req.body)
+    .then(player_data_array => {
+        if(player_data_array.length == 0 ){
+            res.send({message : "success"})
         }
+        else{
+            var counter = 0 ;
+            try {
+                for(var i = 0 ; i < player_data_array.length ; i++){
+                    generateSimulationForPlayer(player_data_array[i], i)
+                    .then(d => {
+                            counter++;
+                            if(counter == player_data_array.length){
+                                res.send({
+                                    message : "success"
+                                })
+                            }
+                    })
+                    .catch(err => {
+                            res.send({
+                                message : "failure",
+                                error : err
+                            })
+                            break ;
+                    })
+                }
+            } catch (e) {
+                res.send({
+                    message : "failure",
+                    error : e
+                })
+            }
 
-        let linear_accelerations = d.map(function (impact_data) {
-            return impact_data.linear_acceleration_pla
-        });
-        // Max Linear Accelearation Impact data
-        let index = indexOfMax(linear_accelerations);
-        playerData["player"]["name"] = d[index].player_id ;
-        playerData["player"]["position"] = d[index].position.toLowerCase() ;
-        playerData["simulation"]["linear-acceleration"][0] = d[index].linear_acceleration_pla ;
-        playerData["simulation"]["angular-acceleration"] = d[index].angular_acceleration_paa ;
-        playerData["simulation"]["impact-point"] = d[index].impact_location_on_head.toLowerCase() ;
-        console.log("PLAYER DATA PARSED IS ", playerData);    
-        let p_id = req.body.player_id.split(" ").join("-");
-        let file_path = `/tmp/${p_id}/`;
-        let timestamp = Number(Date.now()).toString();
-        let file_name = `${timestamp}.json`;
-        executeShellCommands(`mkdir -p ${file_path}`)
-        .then(d => {
-
-            // STORE THE ABOVE DATA IN TMP/PLAYERID/TIMESTAMP.json
-            return writeJsonToFile(file_path + file_name, playerData)
-
-        })
-        .then(d =>{
-
-            // EXECUTE THE MPIRUN COMMAND
-            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${file_path + file_name}`
-            return executeShellCommands(cmd)
-
-        })
-        .then(d =>{
-
-            // EXECUTE MERGEPOLYDATA PNG
-            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${ p_id + timestamp }.png`
-            return executeShellCommands(cmd)
-
-        })
-        .then(d =>{
-            // Upload the file on S3 bucket
-            let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${ p_id + timestamp }.png`
-            return uploadPlayerSimulationFile(req.body.player_id.split(" ").join("-"), simulationFilePath, timestamp + ".png")
-
-        })
-        .then(d =>{
-            console.log(d);
-          res.send({
-            message : "success",
-            data  : d
-          })
-        })
-        .catch(err => {
-            res.send({
-                message : "failure",
-                error : err
-            });
-        })
+        }
     })
     .catch(err => {
         res.send({
