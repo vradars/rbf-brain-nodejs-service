@@ -887,13 +887,14 @@ function getCumulativeAccelerationData(player_id){
     })
 }
 
-function getCumulativeSensorData(player_id){
+function getCumulativeSensorData(obj){
     return new Promise((resolve,reject)=>{
         let params = {
             TableName: 'sensor_data',
-            KeyConditionExpression: "player_id = :player_id",
+            KeyConditionExpression: "team = :team and begins_with(player_id,:player_id)",
             ExpressionAttributeValues: {
-                ":player_id": player_id
+                ":team": obj.team,
+                ":player_id" : obj.player_id
             }
         };
         var item = [];
