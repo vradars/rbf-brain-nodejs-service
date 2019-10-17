@@ -46,16 +46,17 @@ var config = {
 
     "awsAccessKeyId": process.env.AWSACCESSKEYID,
     "awsSecretAccessKey": process.env.AWSACCESSSECRETKEY,
-	"avatar3dClientId": process.env.AVATAR3DCLIENTID,
-	"avatar3dclientSecret": process.env.AVATAR3DCLIENTSECRET,
-	"region" : process.env.REGION,
-	"usersbucket": process.env.USERSBUCKET,
+    "avatar3dClientId": process.env.AVATAR3DCLIENTID,
+    "avatar3dclientSecret": process.env.AVATAR3DCLIENTSECRET,
+    "region" : process.env.REGION,
+    "usersbucket": process.env.USERSBUCKET,
     "apiVersion" : process.env.APIVERSION
 
 };
 
-
 var config_env = config ;
+//var config = require('./config/configuration_keys.json');
+//config_env = config;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -111,14 +112,14 @@ function generate3DModel(obj){
     return new Promise((resolve, reject)=> {
 
 
-	    const pythonProcess = spawn("python", [
-                        __dirname + "/config/AvatarTest.py",
-                        obj.image_url,
-                        config.avatar3dClientId,
-                        config.avatar3dclientSecret,
-                        obj.user_cognito_id
-                    ]);
-	    pythonProcess.stdout.on("data", data => {
+        const pythonProcess = spawn("python", [
+            __dirname + "/config/AvatarTest.py",
+            obj.image_url,
+            config.avatar3dClientId,
+            config.avatar3dclientSecret,
+            obj.user_cognito_id
+        ]);
+        pythonProcess.stdout.on("data", data => {
 
             execFile('zip', ['-r', `./avatars/${obj.user_cognito_id}.zip`, `./avatars/${obj.user_cognito_id}/`], function(err, stdout) {
                 if(err){
@@ -130,18 +131,18 @@ function generate3DModel(obj){
                     resolve(stdout);
                 }
             });
-	    })
-	pythonProcess.stderr.on("data", data => {
-                        console.log(`error:${data}`);
-                        reject(data);
+        })
+        pythonProcess.stderr.on("data", data => {
+            console.log(`error:${data}`);
+            reject(data);
 
-                    });
-                    pythonProcess.on("close", data => {
-                        if (data == "1" || data == 1) {
-                       	reject(data);
-			}
-                        console.log(`child process close with ${data}`)
-                    });
+        });
+        pythonProcess.on("close", data => {
+            if (data == "1" || data == 1) {
+                reject(data);
+            }
+            console.log(`child process close with ${data}`)
+        });
 
 
 
@@ -520,9 +521,9 @@ function getCumulativeEventPressureData(){
     var myObject = {
         message : "success",
         data : { pressure : [241, 292, 125, 106, 282, 171, 58, 37, 219, 263],
-                time_label : [0,5,10,15,20,25,30,35,40,45],
-                timestamp : Number(Date.now()).toString()
-            }
+            time_label : [0,5,10,15,20,25,30,35,40,45],
+            timestamp : Number(Date.now()).toString()
+        }
     }
     return myObject;
 }
@@ -531,16 +532,16 @@ function getCumulativeEventLoadData(){
     var myObject = {
         message : "success",
         data : { load : [{dataset : [198, 69, 109, 139, 73]}
-                        ,{dataset : [28, 113, 31, 10, 148]}
-                        ,{dataset : [28, 2, 1, 10, 148]}
-                        ,{dataset : [182, 3, 16, 97, 240]}
-                    ],
+        ,{dataset : [28, 113, 31, 10, 148]}
+        ,{dataset : [28, 2, 1, 10, 148]}
+        ,{dataset : [182, 3, 16, 97, 240]}
+    ],
 
-                time_label : ["W1","W2","W3","W4","W5"],
-                timestamp : Number(Date.now()).toString()
-            }
-    }
-    return myObject;
+    time_label : ["W1","W2","W3","W4","W5"],
+    timestamp : Number(Date.now()).toString()
+}
+}
+return myObject;
 }
 
 function getHeadAccelerationEvents(){
@@ -550,25 +551,25 @@ function getHeadAccelerationEvents(){
             pressure : [176, 267, 187, 201, 180, 4, 230, 258, 14, 21, 89, 23, 119, 113, 28, 49],
             time_label : [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75],
             timestamp : Number(Date.now()).toString()
-            }
         }
-        return myObject;
+    }
+    return myObject;
 
 }
 
 function getTeamAdminData(){
     var myObject = {
-	message: "success",
-	data: {
-		organization: "York tech Football",
-		sports_type: "football",
-		roster_count: 3,
-		impacts: 4,
-		avg_load: 6,
-		alerts: 8,
-        highest_load : 0.046,
-        most_impacts : 7
-	   }
+        message: "success",
+        data: {
+            organization: "York tech Football",
+            sports_type: "football",
+            roster_count: 3,
+            impacts: 4,
+            avg_load: 6,
+            alerts: 8,
+            highest_load : 0.046,
+            most_impacts : 7
+        }
     }
     return myObject;
 }
@@ -602,31 +603,31 @@ function getPlayersData(){
     var myObject = {
         message : "success",
         data : [
-    {
-        player_name : "Player 1",
-        sport : "Football",
-        position : "RB",
-        alerts : 2,
-        impacts : 4,
-        load : 0.34
-    },
-    {
-        player_name : "Player 1",
-        sport : "Football",
-        position : "RB",
-        alerts : 2,
-        impacts : 4,
-        load : 0.32
-    },
-    {
-        player_name : "Player 2",
-        sport : "Football",
-        position : "FA",
-        alerts : 2,
-        impacts : 8,
-        load : 0.31
-    }
-    ]
+            {
+                player_name : "Player 1",
+                sport : "Football",
+                position : "RB",
+                alerts : 2,
+                impacts : 4,
+                load : 0.34
+            },
+            {
+                player_name : "Player 1",
+                sport : "Football",
+                position : "RB",
+                alerts : 2,
+                impacts : 4,
+                load : 0.32
+            },
+            {
+                player_name : "Player 2",
+                sport : "Football",
+                position : "FA",
+                alerts : 2,
+                impacts : 8,
+                load : 0.31
+            }
+        ]
     }
 
     return myObject ;
@@ -635,17 +636,17 @@ function getPlayersData(){
 
 function getOrganizationAdminData(){
     var myObject = {
-	message: "success",
-	data: {
-		organization: "York tech Football",
-		sports_type: "football",
-		roster_count: 3,
-		impacts: 4,
-		avg_load: 6,
-		alerts: 8,
-        highest_load : 0.046,
-        most_impacts : 7
-	   }
+        message: "success",
+        data: {
+            organization: "York tech Football",
+            sports_type: "football",
+            roster_count: 3,
+            impacts: 4,
+            avg_load: 6,
+            alerts: 8,
+            highest_load : 0.046,
+            most_impacts : 7
+        }
     }
     return myObject ;
 }
@@ -655,10 +656,10 @@ function getAllRosters(){
     var myObject = {
         message : "success",
         data : {rosters : ["Roster 1", "Roster 2", "Roster 3", "Roster 4"]
-        }
     }
+}
 
-    return myObject ;
+return myObject ;
 
 }
 
@@ -671,7 +672,7 @@ function addTeam(obj){
         };
         docClient.put(dbInsert, function (err, data) {
             if (err) {
-
+                console.log(err);
                 reject(err)
 
             } else {
@@ -707,24 +708,45 @@ function deleteTeam(obj) {
 function fetchAllTeamsInOrganization(org){
     return new Promise((resolve,reject)=>{
         let params = {
-        TableName: 'teams',
-        KeyConditionExpression: "organization = :organization",
-        ExpressionAttributeValues: {
-            ":organization": org
-        }
-    };
-    var item = [];
-       docClient.query(params).eachPage((err, data, done) => {
-           if (err) {
-               reject(err);
-           }
-           if (data == null) {
-               resolve(concatArrays(item))
-           } else {
-               item.push(data.Items);
-           }
-           done();
-       });
+            TableName: 'teams',
+            KeyConditionExpression: "organization = :organization",
+            ExpressionAttributeValues: {
+                ":organization": org
+            }
+        };
+        var item = [];
+        docClient.query(params).eachPage((err, data, done) => {
+            if (err) {
+                reject(err);
+            }
+            if (data == null) {
+                resolve(concatArrays(item))
+            } else {
+                item.push(data.Items);
+            }
+            done();
+        });
+    })
+
+}
+
+function scanSensorDataTable(){
+    return new Promise((resolve,reject)=>{
+        let params = {
+            TableName: 'sensor_data'
+        };
+        var item = [];
+        docClient.scan(params).eachPage((err, data, done) => {
+            if (err) {
+                reject(err);
+            }
+            if (data == null) {
+                resolve(concatArrays(item))
+            } else {
+                item.push(data.Items);
+            }
+            done();
+        });
     })
 
 }
@@ -746,35 +768,35 @@ function deleteTeamFromOrganizationList(org, team_name) {
 
                 var item = data.Item ;
                 var updatedList = item.team_list.filter(function(team) {
-                        return team != team_name;
+                    return team != team_name;
                 });
                 console.log(updatedList);
                 var dbInsert = {
                     TableName: "teams",
-                                    Key: { "organization" : org,
-                                           "team_name" : "teams"
-                                       },
-                                    UpdateExpression: "set #list = :newItem ",
-                                    ExpressionAttributeNames: {
-                                        "#list": "team_list"
-                                    },
-                                    ExpressionAttributeValues: {
-                                        ":newItem": updatedList
-                                    },
-                                    ReturnValues: "UPDATED_NEW"
-                }
-                docClient.update(dbInsert, function (err, data) {
-                    if (err) {
-                        console.log("ERROR WHILE DELETING DATA",err);
-                        reject(err);
-
-                    } else {
-                        resolve(data)
-                    }
-                });
+                    Key: { "organization" : org,
+                    "team_name" : "teams"
+                },
+                UpdateExpression: "set #list = :newItem ",
+                ExpressionAttributeNames: {
+                    "#list": "team_list"
+                },
+                ExpressionAttributeValues: {
+                    ":newItem": updatedList
+                },
+                ReturnValues: "UPDATED_NEW"
             }
-        })
+            docClient.update(dbInsert, function (err, data) {
+                if (err) {
+                    console.log("ERROR WHILE DELETING DATA",err);
+                    reject(err);
+
+                } else {
+                    resolve(data)
+                }
+            });
+        }
     })
+})
 }
 
 function addTeamToOrganizationList(org, team_name) {
@@ -797,33 +819,33 @@ function addTeamToOrganizationList(org, team_name) {
                     var dbInsert = {
                         TableName: "teams",
                         Item: { organization : org,
-                                team_name : "teams",
-                                team_list : [team_name] }
-                    };
-                    docClient.put(dbInsert, function (err, data) {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
+                            team_name : "teams",
+                            team_list : [team_name] }
+                        };
+                        docClient.put(dbInsert, function (err, data) {
+                            if (err) {
+                                console.log(err);
+                                reject(err);
 
-                        } else {
-                            resolve(data)
-                        }
-                    });
-                }
-                else {
-                    var dbInsert = {
-                        TableName: "teams",
-                                        Key: { "organization" : org,
-                                               "team_name" : "teams"
-                                           },
-                                        UpdateExpression: "set #list = list_append(#list, :newItem)",
-                                        ExpressionAttributeNames: {
-                                            "#list": "team_list"
-                                        },
-                                        ExpressionAttributeValues: {
-                                            ":newItem": [team_name]
-                                        },
-                                        ReturnValues: "UPDATED_NEW"
+                            } else {
+                                resolve(data)
+                            }
+                        });
+                    }
+                    else {
+                        var dbInsert = {
+                            TableName: "teams",
+                            Key: { "organization" : org,
+                            "team_name" : "teams"
+                        },
+                        UpdateExpression: "set #list = list_append(#list, :newItem)",
+                        ExpressionAttributeNames: {
+                            "#list": "team_list"
+                        },
+                        ExpressionAttributeValues: {
+                            ":newItem": [team_name]
+                        },
+                        ReturnValues: "UPDATED_NEW"
                     }
 
                     docClient.update(dbInsert, function (err, data) {
@@ -840,6 +862,177 @@ function addTeamToOrganizationList(org, team_name) {
         });
     })
 }
+
+function getCumulativeAccelerationData(obj){
+    return new Promise((resolve,reject)=>{
+        let params = {
+            TableName: 'sensor_data',
+            KeyConditionExpression: "team = :team and begins_with(player_id,:player_id)",
+            ExpressionAttributeValues: {
+                ":player_id": obj.player_id,
+                ":team" : obj.team
+            }
+        };
+        var item = [];
+        docClient.query(params).eachPage((err, data, done) => {
+            if (err) {
+                reject(err);
+            }
+            if (data == null) {
+                resolve(concatArrays(item))
+            } else {
+                item.push(data.Items);
+            }
+            done();
+        });
+    })
+}
+
+function getCumulativeSensorData(obj){
+    return new Promise((resolve,reject)=>{
+        let params = {
+            TableName: 'sensor_data',
+            KeyConditionExpression: "team = :team and begins_with(player_id,:player_id)",
+            ExpressionAttributeValues: {
+                ":team": obj.team,
+                ":player_id" : obj.player_id
+            }
+        };
+        var item = [];
+        docClient.query(params).eachPage((err, data, done) => {
+            if (err) {
+                reject(err);
+            }
+            if (data == null) {
+                resolve(concatArrays(item))
+            } else {
+                item.push(data.Items);
+            }
+            done();
+        });
+    })
+}
+
+function customInsertionSortForGraphData(arr , arr1){
+    // arr needs to be the Y-AXIS of the graph
+    // arr1 is X-AXIS of the graph
+    for (var i = 1; i < arr.length; i++)
+    {
+        if (arr[i] < arr[0])
+        {
+            //move current element to the first position
+            arr.unshift(arr.splice(i,1)[0]);
+            arr1.unshift(arr1.splice(i,1)[0]);
+
+        }
+        else if (arr[i] > arr[i-1])
+        {
+            //leave current element where it is
+            continue;
+        }
+        else {
+            //find where element should go
+            for (var j = 1; j < i; j++) {
+                if (arr[i] > arr[j-1] && arr[i] < arr[j])
+                {
+                    //move element
+                    arr.splice(j,0,arr.splice(i,1)[0]);
+                    arr1.splice(j,0,arr1.splice(i,1)[0]);
+                }
+            }
+        }
+    }
+    return {
+        array_Y : arr,
+        array_X : arr1
+    }
+}
+
+function getPlayersInList(list){
+    var playerMap = new Map();
+    for(var i = 0 ; i < list.length ; i++ ){
+        // check if key in map exists (Player id)
+        // if it doesn't exists then add the array element
+        // else update value of alert and impacts in existsing key in map
+        if(playerMap.has(list[i].player_id)){
+
+            let tempObject = playerMap.get(list[i].player_id);
+            tempObject.impact += list[i].impact ;
+            playerMap.set(list[i].player_id,tempObject);
+        }
+        else{
+
+            playerMap.set(list[i].player_id,list[i]);
+        }
+    }
+    console.log(playerMap.keys());
+    return Array.from( playerMap.values() );
+
+}
+
+function indexOfMax(arr) {
+    if (arr.length === 0) {
+        return -1;
+    }
+
+    var max = arr[0];
+    var maxIndex = 0;
+
+    for (var i = 1; i < arr.length; i++) {
+        if (arr[i] > max) {
+            maxIndex = i;
+            max = arr[i];
+        }
+    }
+
+    return maxIndex;
+}
+function writeJsonToFile(path, jsonObject){
+
+    return new Promise((resolve, reject) => {
+        fs.writeFile(path, jsonObject, (err) => {
+            if (err) {
+                reject(err);
+            }
+            else{
+                resolve(true);
+            }
+        });
+    })
+}
+function uploadPlayerSimulationFile(user_id, file_path, file_name, date){
+
+return new Promise((resolve, reject)=>{
+    var uploadParams = {
+        Bucket: config.usersbucket,
+        Key: '', // pass key
+        Body: null, // pass file body
+    };
+
+    const params = uploadParams;
+
+    fs.readFile(file_path, function (err, headBuffer) {
+        if (err) {
+          reject(err);
+        }
+        else {
+            params.Key = user_id + `/simulation/${date}/` + file_name ;
+            params.Body = headBuffer;
+            // Call S3 Upload
+            s3.upload(params, (err, data) => {
+                if (err) {
+                  reject(err);
+                }
+                else {
+                  resolve(data);
+                }
+            });
+
+        }
+    })
+  })
+}
+
 
 // Clearing the cookies
 app.get(`/`, (req, res) => {
@@ -916,35 +1109,35 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
                                             else{
                                                 // Create Simulation File
 
-						generateSimulationFile(req.body.user_cognito_id)
-						    .then((data)=>{
+                                                generateSimulationFile(req.body.user_cognito_id)
+                                                .then((data)=>{
 
-                                                        // Update status of simulation file
-                                                        updateSimulationFileStatusInDB(req.body,function(err,data){
+                                                    // Update status of simulation file
+                                                    updateSimulationFileStatusInDB(req.body,function(err,data){
 
-                                                            if(err){
+                                                        if(err){
 
-                                                                res.send({
-                                                                    message : "failure",
-                                                                    error : err
-                                                                })
+                                                            res.send({
+                                                                message : "failure",
+                                                                error : err
+                                                            })
 
-                                                            }
-                                                            else{
-                                                                res.send({
-                                                                    message : "success"
-                                                                })
-                                                            }
+                                                        }
+                                                        else{
+                                                            res.send({
+                                                                message : "success"
+                                                            })
+                                                        }
 
 
-                                                        });
-						    })
-						    .catch((err)=>{
-						   		res.send({
-									message : "failure",
-								error : err
-								});
-						    })
+                                                    });
+                                                })
+                                                .catch((err)=>{
+                                                    res.send({
+                                                        message : "failure",
+                                                        error : err
+                                                    });
+                                                })
                                             }
                                         })
 
@@ -957,171 +1150,445 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
                                         })
                                     })
                                 }
+                            })
+                        }
+                    })
+                })
+                .catch((err)=>{
+                    res.send({
+                        message : "failure",
+                        error : err
+                    })
+
+                })
+
+            }
+
+        })
+    })
+    .catch((err)=>{
+        res.send({
+            message : "failure",
+            error : err
+        })
+    })
+
+})
+
+app.post(`${apiPrefix}generateINF`, function(req, res){
+    console.log(req.body);
+    generateINP(req.body.user_id).then((d)=>{
+        res.send({
+            message : "success",
+            data : d
+        })
+    }).catch((err)=>{
+        console.log(err);
+        res.send({
+            message : "failure",
+            error : err
+        })
+    })
+})
+app.post(`${apiPrefix}generateSimulation`, function(req, res){
+    console.log(req.body);
+    generateSimulationFile(req.body.user_id).then((d)=>{
+        res.send({
+            message : "success",
+            data : d
+        })
+    }).catch((err)=>{
+        console.log(err);
+        res.send({
+            message : "failure",
+            error : err
+        })
+    })
+})
+
+app.post(`${apiPrefix}generateSimulation`, function(req, res){
+    console.log(req.body);
+    generateSimulationFile(req.body.user_id).then((d)=>{
+        res.send({
+            message : "success",
+            data : d
+        })
+    }).catch((err)=>{
+        console.log(err);
+        res.send({
+            message : "failure",
+            error : err
+        })
+    })
+})
+
+
+app.post(`${apiPrefix}getCumulativeAccelerationData`, function(req, res){
+    console.log(req.body);
+    getCumulativeAccelerationData(req.body)
+    .then(data => {
+        let linear_accelerations = data.map(function (impact_data) {
+            return impact_data.linear_acceleration_pla
+        });
+
+        let angular_accelerations = data.map(function (impact_data) {
+            return impact_data.angular_acceleration_paa
+        });
+        var sorted_acceleration_data = customInsertionSortForGraphData(angular_accelerations, linear_accelerations)
+        res.send({
+            message : "success",
+            data : {
+                linear_accelerations : sorted_acceleration_data.array_X,
+                angular_accelerations : sorted_acceleration_data.array_Y
+            }
+        })
+    })
+    .catch(err => {
+        res.send({
+            message : "failure",
+            data : {
+                linear_accelerations : [],
+                angular_accelerations : []
+            },
+            error : err
+        })
+    })
+})
+
+
+
+app.post(`${apiPrefix}getPlayersDetails`, function(req, res){
+    console.log(req.body);
+    getPlayersListFromTeamsDB(req.body)
+    .then(data => {
+        console.log(data.player_list);
+        res.send({
+            message : "success",
+            data : data
+        })
+    })
+    .catch(err => {
+        console.log(err);
+        res.send({
+            message : "failure",
+            error : err
+        })
+    });
+})
+
+app.post(`${apiPrefix}getCumulativeAccelerationTimeData`, function(req, res){
+
+    getCumulativeAccelerationData(req.body)
+    .then(data => {
+        let linear_accelerations = data.map(function (impact_data) {
+            return impact_data.linear_acceleration_pla
+        });
+
+        // X- Axis Linear Acceleration
+        let max_linear_acceleration = Math.max(...linear_accelerations);
+        // Y Axis timestamp
+        let time = [0,20,40];
+
+        res.send({
+            message : "success",
+            data : {
+                linear_accelerations : [0,max_linear_acceleration,0],
+                time : time
+            }
+        })
+    })
+    .catch(err => {
+        res.send({
+            message : "failure",
+            data : {
+                linear_accelerations : [],
+                angular_accelerations : []
+            },
+            error : err
+        })
+    })
+})
+
+
+app.post(`${apiPrefix}getCumulativeEventPressureData`, function(req, res){
+
+    res.send(getCumulativeEventPressureData());
+})
+
+app.post(`${apiPrefix}getCumulativeEventLoadData`, function(req, res){
+
+    res.send(getCumulativeEventLoadData());
+})
+
+app.post(`${apiPrefix}getHeadAccelerationEvents`, function(req, res){
+
+    res.send(getHeadAccelerationEvents());
+
+})
+
+app.post(`${apiPrefix}getTeamAdminData`, function(req, res){
+
+    res.send(getTeamAdminData());
+
+})
+
+app.post(`${apiPrefix}getImpactSummary`, function(req, res){
+
+    res.send(getImpactSummary());
+
+})
+
+app.post(`${apiPrefix}getImpactHistory`, function(req, res){
+
+    res.send(getImpactHistory());
+
+})
+
+function getPlayersListFromTeamsDB(obj){
+    return new Promise((resolve, reject)=>{
+        var db_table = {
+        TableName: 'teams',
+        Key: {
+            "organization": obj.organization,
+            "team_name" : obj.team_name
+        }
+    };
+    docClient.get(db_table, function (err, data) {
+        if (err) {
+
+            reject(err)
+
+        } else {
+
+            resolve(data.Item)
+        }
+    });
+    })
+}
+
+app.post(`${apiPrefix}getPlayersData`, function(req, res){
+
+    res.send(getPlayersData());
+
+})
+
+app.post(`${apiPrefix}getOrganizationAdminData`, function(req, res){
+
+    res.send(getOrganizationAdminData());
+
+})
+
+app.post(`${apiPrefix}getAllRosters`, function(req, res){
+
+    res.send(getAllRosters());
+
+})
+
+function generateSimulationForPlayer(obj, index){
+    return new Promise((reject, resolve)=>{
+        var playerData = {
+            "player": {
+                "name": "",
+                "position": ""
+            },
+            "simulation": {
+                "mesh": "brain.inp",
+                "linear-acceleration": [0.0, 0.0, 0.0],
+                "angular-acceleration": 0.0,
+                "time-peak-acceleration": 1.0e-5,
+                "maximum-time": 2.0e-5,
+                "impact-point": ""
+            }
+        }
+
+        // Max Linear Accelearation Impact data
+
+        playerData["player"]["name"] = obj.player_id ;
+        playerData["player"]["position"] = obj.position.toLowerCase() ;
+        playerData["simulation"]["linear-acceleration"][0] = obj.linear_acceleration_pla ;
+        playerData["simulation"]["angular-acceleration"] = obj.angular_acceleration_paa ;
+        playerData["simulation"]["impact-point"] = obj.impact_location_on_head.toLowerCase() ;
+        console.log("PLAYER DATA PARSED IS ", playerData);
+        let p_id = obj.player_id.split("$")[0].split(" ").join("-");
+        let file_path = `/tmp/${p_id}/`;
+        let timestamp = Number(Date.now()).toString();
+        let file_name = `${timestamp}.json`;
+        executeShellCommands(`mkdir -p ${file_path}`)
+        .then(d => {
+
+            // STORE THE ABOVE DATA IN TMP/PLAYERID/TIMESTAMP.json
+            return writeJsonToFile(file_path + file_name, playerData)
+
+        })
+        .then(d =>{
+
+            // EXECUTE THE MPIRUN COMMAND
+            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${ p_id + obj.date.split("/").join("-") + "_" + index }`
+            return executeShellCommands(cmd)
+
+        })
+        .then(d =>{
+
+            // EXECUTE MERGEPOLYDATA PNG
+            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${ p_id + obj.date.split("/").join("-") + "_" + index }.png`
+            return executeShellCommands(cmd)
+
+        })
+        .then(d =>{
+            // Upload the file on S3 bucket
+            let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
+            return uploadPlayerSimulationFile(obj.player_id.split("$")[0].split(" ").join("-"), simulationFilePath, `${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`, obj.date.split("/").join("-"))
+
+        })
+        .then(d =>{
+            console.log(d);
+          resolve({
+            message : "success",
+            data  : d
+          })
+        })
+        .catch(err => {
+            console.log(err);
+            reject({
+                message : "failure",
+                error : err
+            });
+        })
+    })
+
+}
+
+app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
+    // GET JSON data
+    // PARSE THE DATA IN REQUIRED FORMAT
+    // ======================== EXAMPLE FORMAT IS GIVEN =======================
+    // {
+    // "player": {
+    // 	"name": "harry",
+    // 	"position": "OL"
+    // },
+    // "simulation": {
+    // 	"mesh": "brain.inp",
+    // 	"linear-acceleration": [80.0, 0.0, 0.0],
+    // 	"angular-acceleration": 8000.0,
+    // 	"time-peak-acceleration": 1.0e-5,
+    // 	"maximum-time": 2.0e-5,
+    // 	"impact-point": "front-low"
+    // }
+    // }
+    //=========================================================================
+    // STORE IT IN TMP filter
+    // CALL THE MPIRUN AND EXECUTE
+    getCumulativeSensorData(req.body)
+    .then(player_data_array => {
+        if(player_data_array.length == 0 ){
+            res.send({message : "success"})
+        }
+        else{
+            var counter = 0 ;
+            try {
+                for(var i = 0 ; i < player_data_array.length ; i++){
+                  var temp = player_data_array[i];
+                  var index = i ;
+                    generateSimulationForPlayer(temp, index)
+                    .then(d => {
+                            counter++;
+                            if(counter == player_data_array.length){
+                                res.send({
+                                    message : "success"
                                 })
                             }
-                        })
                     })
-                    .catch((err)=>{
-                        res.send({
-                            message : "failure",
-                            error : err
-                        })
-
+                    .catch(err => {
+                            res.send({
+                                message : "failure",
+                                error : err
+                            })
                     })
-
                 }
-
-            })
-        })
-        .catch((err)=>{
-            res.send({
-                message : "failure",
-                error : err
-            })
-        })
-
-    })
-
-    app.post(`${apiPrefix}generateINF`, function(req, res){
-        console.log(req.body);
-        generateINP(req.body.user_id).then((d)=>{
-            res.send({
-                message : "success",
-                data : d
-            })
-        }).catch((err)=>{
-            console.log(err);
-            res.send({
-                message : "failure",
-                error : err
-            })
-        })
-    })
-    app.post(`${apiPrefix}generateSimulation`, function(req, res){
-        console.log(req.body);
-        generateSimulationFile(req.body.user_id).then((d)=>{
-            res.send({
-                message : "success",
-                data : d
-            })
-        }).catch((err)=>{
-            console.log(err);
-            res.send({
-                message : "failure",
-                error : err
-            })
-        })
-    })
-    app.post(`${apiPrefix}getCumulativeEventPressureData`, function(req, res){
-
-        res.send(getCumulativeEventPressureData());
-    })
-
-    app.post(`${apiPrefix}getCumulativeEventLoadData`, function(req, res){
-
-        res.send(getCumulativeEventLoadData());
-    })
-
-    app.post(`${apiPrefix}getHeadAccelerationEvents`, function(req, res){
-
-        res.send(getHeadAccelerationEvents());
-
-    })
-
-    app.post(`${apiPrefix}getTeamAdminData`, function(req, res){
-
-        res.send(getTeamAdminData());
-
-    })
-
-    app.post(`${apiPrefix}getImpactSummary`, function(req, res){
-
-        res.send(getImpactSummary());
-
-    })
-
-    app.post(`${apiPrefix}getImpactHistory`, function(req, res){
-
-        res.send(getImpactHistory());
-
-    })
-
-    app.post(`${apiPrefix}getPlayersData`, function(req, res){
-
-        res.send(getPlayersData());
-
-    })
-
-    app.post(`${apiPrefix}getOrganizationAdminData`, function(req, res){
-
-        res.send(getOrganizationAdminData());
-
-    })
-
-    app.post(`${apiPrefix}getAllRosters`, function(req, res){
-
-        res.send(getAllRosters());
-
-    })
-
-    app.post(`${apiPrefix}addTeam`, function(req, res){
-        addTeam(req.body)
-        .then(data => {
-                // Adding user to organization
-                return new addTeamToOrganizationList(req.body.organization, req.body.team_name)
-        })
-        .then(d => {
+            } catch (e) {
                 res.send({
-                    message : "success"
+                    message : "failure",
+                    error : e
                 })
-        })
-        .catch(err => {
-            res.send({
-                message : "failure",
-                error : err
-            })
-        })
+            }
 
+        }
     })
-
-    app.post(`${apiPrefix}fetchAllTeamsInOrganization`, function(req, res){
-        fetchAllTeamsInOrganization(req.body)
-        .then(list => {
-                res.send({
-                    message : "success",
-                    data : list
-                })
-        })
-        .catch(err => {
-            res.send({
-                message : "failure",
-                error : err
-            })
-        })
-
-    })
-
-    app.post(`${apiPrefix}deleteTeam`, function(req, res){
-        deleteTeam(req.body)
-        .then(d => {
-                return new deleteTeamFromOrganizationList(req.body.organization, req.body.team_name)
-        })
-        .then(d => {
-            res.send({
-                message : "success"
-            })
-        })
-        .catch(err => {
-            res.send({
-                message : "failure",
-                error : err
-            })
+    .catch(err => {
+        res.send({
+            message : "failure",
+            error  : err
         })
     })
 
 
-    // Configuring port for APP
-    const port = 3002;
-    const server = app.listen(port, function () {
-        console.log('Magic happens on ' + port);
-    });
+})
+
+app.post(`${apiPrefix}addTeam`, function(req, res){
+    addTeam(req.body)
+    .then(data => {
+        // Adding user to organization
+        return new addTeamToOrganizationList(req.body.organization, req.body.team_name)
+    })
+    .then(d => {
+        res.send({
+            message : "success"
+        })
+    })
+    .catch(err => {
+        res.send({
+            message : "failure",
+            error : err
+        })
+    })
+
+})
+
+app.post(`${apiPrefix}fetchAllTeamsInOrganization`, function(req, res){
+    console.log(req.body);
+    fetchAllTeamsInOrganization(req.body.organization)
+    .then(list => {
+        var teamList = list.filter(function(team) {
+
+            return (!("team_list" in team));
+        });
+        res.send({
+            message : "success",
+            data : teamList
+        })
+    })
+    .catch(err => {
+        console.log(err);
+        res.send({
+            message : "failure",
+            error : err
+        })
+    })
+
+})
+
+app.post(`${apiPrefix}deleteTeam`, function(req, res){
+    deleteTeam(req.body)
+    .then(d => {
+        return new deleteTeamFromOrganizationList(req.body.organization, req.body.team_name)
+    })
+    .then(d => {
+        res.send({
+            message : "success"
+        })
+    })
+    .catch(err => {
+        res.send({
+            message : "failure",
+            error : err
+        })
+    })
+})
+
+
+// Configuring port for APP
+const port = 3000;
+const server = app.listen(port, function () {
+    console.log('Magic happens on ' + port);
+});
