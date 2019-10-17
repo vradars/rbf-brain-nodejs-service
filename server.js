@@ -1016,7 +1016,7 @@ return new Promise((resolve, reject)=>{
           reject(err);
         }
         else {
-            params.Key = user_id + `/${date}/simulation/` + file_name ;
+            params.Key = user_id + `/simulation/${date}/` + file_name ;
             params.Body = headBuffer;
             // Call S3 Upload
             s3.upload(params, (err, data) => {
@@ -1409,7 +1409,7 @@ function generateSimulationForPlayer(obj, index){
         playerData["simulation"]["angular-acceleration"] = obj.angular_acceleration_paa ;
         playerData["simulation"]["impact-point"] = obj.impact_location_on_head.toLowerCase() ;
         console.log("PLAYER DATA PARSED IS ", playerData);
-        let p_id = obj.player_id.split(" ").join("-");
+        let p_id = obj.player_id.split("$")[0].split(" ").join("-");
         let file_path = `/tmp/${p_id}/`;
         let timestamp = Number(Date.now()).toString();
         let file_name = `${timestamp}.json`;
@@ -1423,21 +1423,21 @@ function generateSimulationForPlayer(obj, index){
         .then(d =>{
 
             // EXECUTE THE MPIRUN COMMAND
-            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ./tmp/${ p_id + obj.date.split("/").join("-") + "_" + index }`
+            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${ p_id + obj.date.split("/").join("-") + "_" + index }`
             return executeShellCommands(cmd)
 
         })
         .then(d =>{
 
             // EXECUTE MERGEPOLYDATA PNG
-            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ./tmp/${ p_id + obj.date.split("/").join("-") + "_" + index }.png`
+            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${ p_id + obj.date.split("/").join("-") + "_" + index }.png`
             return executeShellCommands(cmd)
 
         })
         .then(d =>{
             // Upload the file on S3 bucket
-            let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/tmp/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
-            return uploadPlayerSimulationFile(req.body.player_id.split(" ").join("-"), simulationFilePath, `${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`, obj.date.split("/").join("-"))
+            let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
+            return uploadPlayerSimulationFile(obj.player_id.split("$")[0].split(" ").join("-"), simulationFilePath, `${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`, obj.date.split("/").join("-"))
 
         })
         .then(d =>{
@@ -1488,7 +1488,9 @@ app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
             var counter = 0 ;
             try {
                 for(var i = 0 ; i < player_data_array.length ; i++){
-                    generateSimulationForPlayer(player_data_array[i], i)
+                  var temp = player_data_array[i];
+                  var index = i ;
+                    generateSimulationForPlayer(temp, index)
                     .then(d => {
                             counter++;
                             if(counter == player_data_array.length){
@@ -1502,7 +1504,6 @@ app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
                                 message : "failure",
                                 error : err
                             })
-                            break ;
                     })
                 }
             } catch (e) {
