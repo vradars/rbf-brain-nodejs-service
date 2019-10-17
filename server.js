@@ -863,13 +863,14 @@ function addTeamToOrganizationList(org, team_name) {
     })
 }
 
-function getCumulativeAccelerationData(player_id){
+function getCumulativeAccelerationData(obj){
     return new Promise((resolve,reject)=>{
         let params = {
             TableName: 'sensor_data',
-            KeyConditionExpression: "player_id = :player_id",
+            KeyConditionExpression: "team = :team and begins_with(player_id,:player_id)",
             ExpressionAttributeValues: {
-                ":player_id": player_id
+                ":player_id": obj.player_id,
+                ":team" : obj.team
             }
         };
         var item = [];
@@ -1224,7 +1225,7 @@ app.post(`${apiPrefix}generateSimulation`, function(req, res){
 
 app.post(`${apiPrefix}getCumulativeAccelerationData`, function(req, res){
     console.log(req.body);
-    getCumulativeAccelerationData(req.body.player_id)
+    getCumulativeAccelerationData(req.body)
     .then(data => {
         let linear_accelerations = data.map(function (impact_data) {
             return impact_data.linear_acceleration_pla
@@ -1257,16 +1258,17 @@ app.post(`${apiPrefix}getCumulativeAccelerationData`, function(req, res){
 
 
 app.post(`${apiPrefix}getPlayersDetails`, function(req, res){
-    scanSensorDataTable()
-    .then(list => {
-        var player_list = [];
-
+    console.log(req.body);
+    getPlayersListFromTeamsDB(req.body)
+    .then(data => {
+        console.log(data.player_list);
         res.send({
             message : "success",
-            data : getPlayersInList(list)
+            data : data
         })
     })
     .catch(err => {
+        console.log(err);
         res.send({
             message : "failure",
             error : err
@@ -1276,7 +1278,7 @@ app.post(`${apiPrefix}getPlayersDetails`, function(req, res){
 
 app.post(`${apiPrefix}getCumulativeAccelerationTimeData`, function(req, res){
 
-    getCumulativeAccelerationData(req.body.player_id)
+    getCumulativeAccelerationData(req.body)
     .then(data => {
         let linear_accelerations = data.map(function (impact_data) {
             return impact_data.linear_acceleration_pla
@@ -1341,6 +1343,28 @@ app.post(`${apiPrefix}getImpactHistory`, function(req, res){
     res.send(getImpactHistory());
 
 })
+
+function getPlayersListFromTeamsDB(obj){
+    return new Promise((resolve, reject)=>{
+        var db_table = {
+        TableName: 'teams',
+        Key: {
+            "organization": obj.organization,
+            "team_name" : obj.team_name
+        }
+    };
+    docClient.get(db_table, function (err, data) {
+        if (err) {
+
+            reject(err)
+
+        } else {
+
+            resolve(data.Item)
+        }
+    });
+    })
+}
 
 app.post(`${apiPrefix}getPlayersData`, function(req, res){
 
