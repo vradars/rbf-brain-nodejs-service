@@ -544,16 +544,68 @@ function getCumulativeEventLoadData(){
 return myObject;
 }
 
-function getHeadAccelerationEvents(){
-    var myObject = {
-        message : "success",
-        data : {
-            pressure : [176, 267, 187, 201, 180, 4, 230, 258, 14, 21, 89, 23, 119, 113, 28, 49],
-            time_label : [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75],
-            timestamp : Number(Date.now()).toString()
-        }
-    }
-    return myObject;
+function getHeadAccelerationEvents(obj){
+    return new Promise((resolve,reject)=>{
+        let params = {
+            TableName: 'sensor_data',
+            KeyConditionExpression: "team = :team and begins_with(player_id, :player_id)",
+            ExpressionAttributeValues: {
+                ":team": obj.team,
+                ":player_id" : obj.player_id
+            }
+        };
+        var item = [];
+        docClient.query(params).eachPage((err, data, done) => {
+            if (err) {
+                console.log(err);
+                reject(err);
+            }
+            if (data == null) {
+                let records = concatArrays(item);
+                let date = records.map(function (record) {
+                    return record.date ;
+                });
+                // Now we will store no of impacts corresponding to date
+                var date_map = new Map();
+                for(var i = 0 ; i < date.length ; i++ ){
+                    // check if key in map exists (Player id)
+                    // if it doesn't exists then add the array element
+                    // else update value of alert and impacts in existsing key in map
+                    if(date_map.has(date[i])){
+
+                        let tempObject = date_map.get(date[i]);
+                        tempObject += 1 ;
+                        date_map.set(date[i],tempObject);
+                    }
+                    else{
+
+                        date_map.set(date[i], 0 );
+                    }
+                }
+                console.log("DATE MAP",date_map.keys());
+                console.log(Array.from( date_map.values() ));
+
+
+                resolve({
+                    no_of_impacts : Array.from( date_map.values() ),
+                    dates : Array.from( date_map.keys() ),
+                    timestamp : Number(Date.now()).toString()
+                });
+            } else {
+                item.push(data.Items);
+            }
+            done();
+        });
+    })
+    // var myObject = {
+    //     message : "success",
+    //     data : {
+    //         pressure : [176, 267, 187, 201, 180, 4, 230, 258, 14, 21, 89, 23, 119, 113, 28, 49],
+    //         time_label : [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75],
+    //         timestamp : Number(Date.now()).toString()
+    //     }
+    // }
+    // return myObject;
 
 }
 
@@ -1302,7 +1354,43 @@ app.post(`${apiPrefix}getCumulativeAccelerationTimeData`, function(req, res){
             message : "failure",
             data : {
                 linear_accelerations : [],
-                angular_accelerations : []
+                time : []
+            },
+            error : err
+        })
+    })
+})
+
+app.post(`${apiPrefix}getAllCumulativeAccelerationTimeRecords`, function(req, res){
+
+    getCumulativeAccelerationData(req.body)
+    .then(data => {
+        var acceleration_data_list = [];
+        data.forEach(function(acc_data){
+
+            // X- Axis Linear Acceleration
+            let max_acceleration = [ 0, acc_data.linear_acceleration_pla, 0 ];
+            // Y Axis timestamp
+            let time = [0,20,40];
+            acceleration_data_list.push({
+                max_linear_acceleration : max_acceleration,
+                time : time,
+                timestamp : acc_data.timestamp
+            })
+        })
+
+
+        res.send({
+            message : "success",
+            data : acceleration_data_list
+        })
+    })
+    .catch(err => {
+        res.send({
+            message : "failure",
+            data : {
+                linear_accelerations : [],
+                time : []
             },
             error : err
         })
@@ -1321,8 +1409,22 @@ app.post(`${apiPrefix}getCumulativeEventLoadData`, function(req, res){
 })
 
 app.post(`${apiPrefix}getHeadAccelerationEvents`, function(req, res){
+    console.log(req.body);
+    getHeadAccelerationEvents(req.body)
+    .then(data => {
+        res.send({
+            message : "success",
+            data : data
+        })
+    })
+    .catch(err => {
+        console.log("========================>,ERRROR ,", err);
+        res.send({
+            message : "failure",
+            error : err
+        });
+    })
 
-    res.send(getHeadAccelerationEvents());
 
 })
 
