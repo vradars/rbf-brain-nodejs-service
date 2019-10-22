@@ -940,6 +940,55 @@ function getCumulativeAccelerationData(obj){
     })
 }
 
+function getTeamDataWithPlayerRecords(obj){
+    return new Promise((resolve,reject)=>{
+        let params = {
+            TableName: 'sensor_data',
+            KeyConditionExpression: "team = :team and begins_with(player_id,:player_id)",
+            ExpressionAttributeValues: {
+                ":player_id": obj.player_id,
+                ":team" : obj.team
+            }
+        };
+        var item = [];
+        docClient.query(params).eachPage((err, data, done) => {
+            if (err) {
+                reject(err);
+            }
+            if (data == null) {
+                resolve(concatArrays(item))
+            } else {
+                item.push(data.Items);
+            }
+            done();
+        });
+    })
+}
+
+function getTeamData(obj){
+    return new Promise((resolve,reject)=>{
+        let params = {
+            TableName: 'sensor_data',
+            KeyConditionExpression: "team = :team",
+            ExpressionAttributeValues: {
+                ":team" : obj.team
+            }
+        };
+        var item = [];
+        docClient.query(params).eachPage((err, data, done) => {
+            if (err) {
+                reject(err);
+            }
+            if (data == null) {
+                resolve(concatArrays(item))
+            } else {
+                item.push(data.Items);
+            }
+            done();
+        });
+    })
+}
+
 function getCumulativeSensorData(obj){
     return new Promise((resolve,reject)=>{
         let params = {
@@ -1310,14 +1359,47 @@ app.post(`${apiPrefix}getCumulativeAccelerationData`, function(req, res){
 
 
 app.post(`${apiPrefix}getPlayersDetails`, function(req, res){
-    console.log(req.body);
+    console.log("Get Player details called",req.body);
     getPlayersListFromTeamsDB(req.body)
     .then(data => {
         console.log(data.player_list);
-        res.send({
-            message : "success",
-            data : data
-        })
+        if(data.player_list.length == 0 ){
+            res.send({
+                message : "success",
+                data : []
+            })
+        }
+        else{
+            var counter = 0 ;
+            var p_data = [] ;
+            data.player_list.forEach(function(player,index){
+                let p = player ;
+                let i = index ;
+                getTeamDataWithPlayerRecords({player_id : p, team : req.body.team_name})
+                .then(player_data => {
+                    counter++;
+                    p_data.push({player_name : p ,
+                    simulation_data : player_data});
+
+                    if(counter ==  data.player_list.length){
+                        res.send({
+                            message : "success",
+                            data : p_data
+                        })
+                    }
+                })
+                .catch(err => {
+                    console.log(err);
+                    counter++;
+                    if(counter ==  data.player_list.length){
+                        res.send({
+                            message : "failure",
+                            data : p_data
+                        })
+                    }
+                })
+            })
+        }
     })
     .catch(err => {
         console.log(err);
@@ -1655,10 +1737,40 @@ app.post(`${apiPrefix}fetchAllTeamsInOrganization`, function(req, res){
 
             return (!("team_list" in team));
         });
-        res.send({
-            message : "success",
-            data : teamList
-        })
+        let counter = 0 ;
+        if( teamList.length == 0 ){
+            res.send({
+                message : "success",
+                data : []
+            })
+        }
+        else{
+            teamList.forEach(function(team,index){
+                let data = team ;
+                let i = index ;
+                getTeamData({team : data.team_name})
+                .then(simulation_records => {
+                    counter++;
+                    team["simulation_count"] = Number(simulation_records.length).toString();
+
+                    if(counter == teamList.length){
+                        res.send({
+                            message : "success",
+                            data : teamList
+                        })
+                    }
+                })
+                .catch(err => {
+                    counter++
+                    if(counter == teamList.length){
+                        res.send({
+                            message : "failure",
+                            error : err
+                        })
+                    }
+                })
+            })
+        }
     })
     .catch(err => {
         console.log(err);
