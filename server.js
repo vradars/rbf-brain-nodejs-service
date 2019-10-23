@@ -1457,7 +1457,8 @@ app.post(`${apiPrefix}getAllCumulativeAccelerationTimeRecords`, function(req, re
             acceleration_data_list.push({
                 max_linear_acceleration : max_acceleration,
                 time : time,
-                timestamp : acc_data.timestamp
+                timestamp : acc_data.timestamp,
+                record_time : acc_data.time
             })
         })
 
