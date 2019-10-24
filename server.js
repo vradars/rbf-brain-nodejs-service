@@ -260,7 +260,7 @@ function uploadSimulationFile(user_id,timestamp,cb){
 
     const params = uploadParams;
 
-    fs.readFile(`../users_data/${user_id}/simulation/${timestamp}.png`, function (err, headBuffer) {
+    fs.readFile(`/home/ec2-user/FemTech/build/examples/ex5/${user_id}-${timestamp}.png`, function (err, headBuffer) {
         if (err) {
             cb(err,'');
         }
@@ -323,15 +323,19 @@ function generateSimulationFile(user_id){
         // 3. Store the file in DynamoDB
 
         // Doing Simulation on generic brain.inp file
-        var cmd = `cd /home/ubuntu/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 brain.inp`
+        var cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 input.json`
+      console.log(cmd);
         executeShellCommands(cmd).then((data)=>{
 
             // Doing Post Processing on simulation
             var timestamp = Date.now();
-            cmd = `mkdir -p ../users_data/${user_id}/simulation/ ; cd /home/ubuntu/paraview-image-write ; xvfb-run -a --server-args="-screen 0 1024x768x24" pvpython ~/paraview-image-write/ppr1.py /home/ubuntu/users_data/${user_id}/simulation/${timestamp}.png`;
+
+            cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${user_id}-${timestamp}.png`;
+          console.log(cmd);
             executeShellCommands(cmd).then((data)=>{
                 uploadSimulationFile(user_id,timestamp,(err,data)=>{
                     if(err){
+                      console.log(err);
                         reject(err);
                     }
                     else{
@@ -343,10 +347,12 @@ function generateSimulationFile(user_id){
 
             })
             .catch((error)=>{
+              console.log(err);
                 reject(error);
             })
 
         }).catch((error)=>{
+          console.log(err);
             reject(error);
 
         })
@@ -1169,8 +1175,7 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
                 })
             }
             else{
-                console.log(`xvfb-run ./config/ProjectedTexture ./avatars/${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`);
-                executeShellCommands(`xvfb-run ./config/ProjectedTexture ./avatars/${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`)
+              executeShellCommands(`xvfb-run ./../MergePolyData/build/ImageCapture ./avatars${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`)
                 .then((data)=>{
                     // Upload the selfie image generated on S3
                     uploadGeneratedSelfieImage(req.body,function(err,data){
