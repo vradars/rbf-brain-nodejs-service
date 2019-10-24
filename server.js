@@ -1323,6 +1323,36 @@ app.post(`${apiPrefix}generateSimulation`, function(req, res){
     })
 })
 
+app.post(`${apiPrefix}getSimulationStatusCount`, function(req, res){
+    console.log(req.body);
+
+    getTeamData(req.body)
+    .then(simulation_records => {
+
+
+
+            res.send({
+                message : "success",
+                data : {
+                    completed : simulation_records.length,
+                    failed : 0,
+                    pending : 0
+                }
+            })
+
+    })
+    .catch(err => {
+        res.send({
+            message : "failure",
+            error : err,
+            data : {
+                completed : 0,
+                failed : 0,
+                pending : 0
+            }
+        })
+    })
+})
 
 app.post(`${apiPrefix}getCumulativeAccelerationData`, function(req, res){
     console.log(req.body);
