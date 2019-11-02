@@ -152,31 +152,6 @@ def main(selfie):
 
     avatar_status_url = rsp['url']
 
-    #print('Waiting for avatar to compute...', end='', flush=True)
-    while True:
-        rsp = requests.get(avatar_status_url, headers=headers).json()
-
-        #print('.', end='', flush=True)
-
-        if rsp['status'] == 'Completed':
-            #print('Completed!')
-            break
-
-        time.sleep(3)
-
-    #print('Downloading avatar...')
-    mesh = requests.get(rsp['mesh'], headers=headers)
-    texture = requests.get(rsp['texture'], headers=headers)
-
-    #print('Saving avatar model to a ply file...')
-    directoryName = 'avatars/' + sys.argv[4] + '/face'
-    with io.BytesIO(mesh.content) as zipmemory:
-        with zipfile.ZipFile(zipmemory) as archive:
-            archive.extractall(directoryName)
-
-    #print('Saving texture to a jpg file')
-    with open(directoryName + '/model.jpg', 'wb') as texture_file:
-        texture_file.write(texture.content)	
 
     #print('Ready! Look for model.ply and model.jpg in your current folder!')
     return 'avatars/' + sys.argv[4]
