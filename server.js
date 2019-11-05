@@ -98,6 +98,7 @@ function executeShellCommands(cmd) {
         var result = ''
         command.stdout.on('data', function (data) {
             result += data.toString()
+            console.log(result);
         })
         command.on('close', function (code) {
             resolve(result)
@@ -1097,7 +1098,7 @@ function indexOfMax(arr) {
 function writeJsonToFile(path, jsonObject){
 
     return new Promise((resolve, reject) => {
-        fs.writeFile(path, jsonObject, (err) => {
+        fs.writeFile(path, JSON.stringify(jsonObject), (err) => {
             if (err) {
                 reject(err);
             }
@@ -1643,7 +1644,8 @@ function generateSimulationForPlayer(obj, index){
         .then(d =>{
 
             // EXECUTE THE MPIRUN COMMAND
-            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${ p_id + obj.date.split("/").join("-") + "_" + index }`
+            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${file_path}${file_name}`
+          console.log(cmd);
             return executeShellCommands(cmd)
 
         })
