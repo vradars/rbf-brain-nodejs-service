@@ -98,7 +98,6 @@ function executeShellCommands(cmd) {
         var result = ''
         command.stdout.on('data', function (data) {
             result += data.toString()
-            console.log(result);
         })
         command.on('close', function (code) {
             resolve(result)
