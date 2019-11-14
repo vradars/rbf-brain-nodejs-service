@@ -1,13 +1,15 @@
-
 {
-    "awsAccessKeyId": "XXXXXXXXXXXXX",
-    "awsSecretAccessKey":"XXXXXXXXXXXX",
-	"avatar3dClientId":"XXXXXXXXXXXXXX",
-	"avatar3dclientSecret":"XXXXXXXXXXXXXXX",
-	"region" : "XXXXXXXXXXXXXX",
-	"usersbucket": "XXXXXXXXXXXX",
-    "apiVersion" :"XXXXXXXXXXXXXX"
-
-
+    "awsAccessKeyId": "",
+    "awsSecretAccessKey":"",
+    "awsBucket":"",
+    "avatar3dClientId":"",
+    "avatar3dclientSecret":"",
+    "region" : "",
+    "usersbucket": "",
+    "userPoolId": "",
+    "apiVersion" :"",
+    "ClientId" : "" ,
+    "email_id" : "",
+    "jwt_secret" : "",
+    "react_website_url" : ""
 }
-

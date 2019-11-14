@@ -13,6 +13,10 @@ multer = require('multer'),
 ms = require("ms"),
 download = require('download-file'),
 execFile = require('child_process').execFile;
+conversion = require("phantom-html-to-pdf")(),
+ejs = require('ejs'),
+nodemailer = require('nodemailer'),
+jwt = require('jsonwebtoken');
 
 
 // ================================================
@@ -50,13 +54,20 @@ var config = {
     "avatar3dclientSecret": process.env.AVATAR3DCLIENTSECRET,
     "region" : process.env.REGION,
     "usersbucket": process.env.USERSBUCKET,
-    "apiVersion" : process.env.APIVERSION
-
+    "apiVersion" : process.env.APIVERSION,
+    "subject_signature" : process.env.SUBJECTSIGNATURE,
+    "jwt_secret" : process.env.JWTSECRET,
+    "email_id" : process.env.EMAILID,
+    "mail_list" : process.env.MAILLIST,
+    "ComputeInstanceEndpoint" : process.env.COMPUTEINSTANCEENDPOINT,
+    "userPoolId": process.env.USERPOOLID,
+    "ClientId" : process.env.CLIENTID,
+    "react_website_url" : process.env.REACTURL
 };
 
 var config_env = config ;
-//var config = require('./config/configuration_keys.json');
-//config_env = config;
+// var config = require('./config/configuration_keys.json');
+// var config_env = config;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -76,8 +87,19 @@ const docClient = new AWS.DynamoDB.DocumentClient({
     convertEmptyValues: true
 });
 
+// NODEMAILER CONFIGURATION
+var email = config_env.email_id ;
+let transport = nodemailer.createTransport({
+    SES: new AWS.SES({ apiVersion: "2010-12-01" })
+})
+console.log(email, config_env.email_id_password);
+
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+
+// view engine setup
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
 
 // ===========================================
 //     UTILITY FUNCTIONS
@@ -91,6 +113,96 @@ function concatArrays(arrays) {
 // ======================================
 //              FUNCTIONS
 // ======================================
+
+function getUserDetails(user_name, cb) {
+    return new Promise((resolve, reject) =>{
+        var db_table = {
+            TableName: 'users',
+            Key: {
+                "user_cognito_id": user_name
+            }
+        };
+        docClient.get(db_table, function (err, data) {
+            if (err) {
+
+                reject(err)
+
+            } else {
+
+                resolve(data);
+            }
+        });
+    })
+}
+
+
+
+function sendMail(recepient, subject, body, attachement_name = null, attachment = null ) {
+    return new Promise((resolve, reject) =>{
+
+        var maillist = [
+          "vradars234@gmail.com"
+        ]
+        console.log(email);
+        var message = {
+            from : email,
+            to : maillist,
+            subject : subject,
+            text : body
+        }
+
+        if(attachment != null){
+            message["attachments"] = {
+                filename : attachement_name,
+                path : attachment,
+                cid : "IRB"
+            }
+        }
+
+        transport.sendMail(message,(err,info) =>{
+            console.log(info, );
+            if(err){
+                reject(err)
+                console.log("error while sending mail", err);
+            }
+            else{
+               console.log('success while sending mail')
+                resolve({
+                    status : "success",
+                    log : `Mail sent to vradars234@gmail.com`
+                })
+            }
+        })
+    })
+}
+
+function generateJWToken(obj,expiry){
+    return new Promise((resolve, reject) =>{
+        console.log("THE VALUES IS ", config_env.jwt_secret);
+        jwt.sign(obj, config_env.jwt_secret, { expiresIn: expiry }, (err,token)=> {
+            if(err){
+                reject(err);
+            }
+            else{
+                resolve(token);
+            }
+        })
+    })
+}
+
+function verifyToken(token){
+    return new Promise((resolve, reject) =>{
+        jwt.verify(token, config_env.jwt_secret, (err,decoded)=> {
+            if(err){
+                console.log(err);
+                reject(err);
+            }
+            else{
+                resolve(decoded);
+            }
+        })
+    })
+}
 
 function executeShellCommands(cmd) {
     return new Promise((resolve, reject) => {
@@ -502,10 +614,12 @@ function updateINPFileStatusInDB(obj,cb){
 }
 
 
-function updateSimulationFileStatusInDB(obj,cb){
+function updateSimulationFileStatusInDB(obj){
+  return new Promise((resolve,reject)=>{
     var userParams = {
         TableName: "users",
         Key: {
+
             "user_cognito_id": obj.user_cognito_id
         },
         UpdateExpression: "set is_selfie_simulation_file_uploaded = :is_selfie_simulation_file_uploaded",
@@ -516,13 +630,38 @@ function updateSimulationFileStatusInDB(obj,cb){
     };
     docClient.update(userParams, (err, data) => {
         if (err) {
+            reject(err);
+        } else {
+            resolve(data);
+        }
+    })
+  });
+
+}
+
+
+function updateIRBFormStatusInDDB(obj,cb){
+    var userParams = {
+        TableName: "users",
+        Key: {
+            "user_cognito_id": obj.user_cognito_id
+        },
+        UpdateExpression: "set is_IRB_complete = :is_IRB_complete",
+        ExpressionAttributeValues: {
+            ":is_IRB_complete" : true
+        },
+        ReturnValues: "UPDATED_NEW"
+    };
+    docClient.update(userParams, (err, data) => {
+        if (err) {
             cb(err,'');
         } else {
             cb('',data);
         }
     })
-
 }
+
+
 function getCumulativeEventPressureData(){
     var myObject = {
         message : "success",
@@ -1140,11 +1279,173 @@ return new Promise((resolve, reject)=>{
   })
 }
 
+function uploadIRBForm(user_id, file_path, file_name){
+
+return new Promise((resolve, reject)=>{
+    var uploadParams = {
+        Bucket: config.usersbucket,
+        Key: '', // pass key
+        Body: null, // pass file body
+    };
+
+    const params = uploadParams;
+
+    fs.readFile(file_path, function (err, headBuffer) {
+        if (err) {
+          reject(err);
+        }
+        else {
+            params.Key = user_id + `/irb/` + file_name ;
+            params.Body = headBuffer;
+            // Call S3 Upload
+            s3.upload(params, (err, data) => {
+                if (err) {
+                  reject(err);
+                }
+                else {
+                  resolve(data);
+                }
+            });
+
+        }
+    })
+  })
+}
 
 // Clearing the cookies
 app.get(`/`, (req, res) => {
     res.send("TesT SERVICE HERE");
 })
+
+app.post(`${apiPrefix}getUserDetailsForIRB`, function(req, res){
+    console.log(req.body);
+    verifyToken(req.body.consent_token)
+    .then(decoded_token => {
+        console.log(decoded_token);
+            getUserDetails(decoded_token.user_cognito_id)
+            .then(data => {
+                console.log(data);
+                res.send({
+                    message : "success",
+                    data : data
+                })
+            })
+            .catch(err => {
+                res.send({
+                    message : "failure",
+                    err : err
+                })
+            })
+    })
+    .catch(err => {
+        res.send({
+            message : "failure",
+            err : err
+        })
+    })
+})
+
+app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
+    console.log(req.body);
+    var { user_cognito_id, age } =  req.body ;
+    req.body["subject_signature"] = config_env.subject_signature
+            ejs.renderFile(__dirname + '/views/IRBTemplate.ejs', {user_data : req.body }, {}, function (err, str) {
+                // str => Rendered HTML string
+                if(err){
+                        console.log(JSON.stringify(err))
+                        res.send({
+                            message : 'failure',
+                            error : err
+                        })
+                } else {
+                  conversion({ html: str,
+                      paperSize: {
+                                  format: 'A4'
+                              } }, function(err, pdf) {
+
+                   // Gives the path of the actual stream
+                    console.log(pdf.stream.path);
+                    uploadIRBForm(user_cognito_id, pdf.stream.path, `${user_cognito_id}_${Number(Date.now()).toString()}.pdf`)
+                    .then(response => {
+                        // Updating the IRB Form Status in DDB Record of User
+                        console.log(response);
+                        return updateSimulationFileStatusInDB({ user_cognito_id : user_cognito_id})
+
+                    })
+                    .then(response => {
+                        // Send mail here
+                        console.log(response);
+                        return generateJWToken({user_cognito_id : user_cognito_id}, "365d")
+
+                      })
+                    .then(token => {
+                        console.log(token);
+                        console.log("age now is ", age);
+                        console.log("Request.body.age is ", req.body.age);
+
+                        if(req.body.isIRBComplete == true) {
+
+                          // Send IRB form completion mail of minor
+
+                          // subject
+                          let subject = `NSFCAREER IRB :\n ${req.body.first_name} ${req.body.last_name}`
+
+                          // link
+                          let link = ` ${req.body.first_name} ${req.body.last_name} signed up. IRB Form of Minor Complete `
+                          console.log( 'Sending mail');
+
+                          // Send mail
+                          return sendMail(config_env.mail_list, subject, link, "IRB_CONSENT.pdf" , pdf.stream.path )
+
+                        } else {
+
+                          if( age > 18 ) {
+
+                            // subject
+                            let subject = `NSFCAREER IRB :\n ${req.body.first_name} ${req.body.last_name}`
+
+                            // link
+                            let link = ` ${req.body.first_name} ${req.body.last_name} signed up `
+                            console.log( 'Sending mail');
+
+                            // Send mail
+                            return sendMail(config_env.mail_list, subject, link, "IRB_CONSENT.pdf" , pdf.stream.path )
+
+                          } else {
+
+                            // Send consent form link to guardian
+                            let link = `Please click on the below provided link to confirm minor's account :\n ${config_env.react_website_url}IRBParentConsent?key=${token}`;
+                            return sendMail(req.body.guardian_mail, "IRB FORM", link, "IRB_CONSENT.pdf",  pdf.stream.path );
+
+
+                          }
+
+                        }
+
+                    })
+                    .then(response => {
+                        res.send({
+                            message : "success",
+                            data : response
+                        })
+                    })
+                    .catch(err => {
+                        console.log(err);
+                        res.send({
+                            message : "failure",
+                            data : err
+                        })
+                    })
+
+                  });
+                }
+
+
+
+            });
+
+})
+
 
 app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(req, res){
 
@@ -1219,26 +1520,15 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
                                                 .then((data)=>{
 
                                                     // Update status of simulation file
-                                                    updateSimulationFileStatusInDB(req.body,function(err,data){
+                                                    return updateSimulationFileStatusInDB(req.body)
 
-                                                        if(err){
+                                                }).then((data) => {
 
-                                                            res.send({
-                                                                message : "failure",
-                                                                error : err
-                                                            })
+                                                  res.send({
+                                                      message : "success"
+                                                  })
 
-                                                        }
-                                                        else{
-                                                            res.send({
-                                                                message : "success"
-                                                            })
-                                                        }
-
-
-                                                    });
-                                                })
-                                                .catch((err)=>{
+                                                }).catch((err)=>{
                                                     res.send({
                                                         message : "failure",
                                                         error : err
@@ -1838,8 +2128,9 @@ app.post(`${apiPrefix}deleteTeam`, function(req, res){
 })
 
 
+
 // Configuring port for APP
-const port = 3000;
+const port = 3002;
 const server = app.listen(port, function () {
     console.log('Magic happens on ' + port);
 });
