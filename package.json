@@ -15,10 +15,17 @@
     "cookie-parser": "^1.4.4",
     "cross-env": "^5.2.0",
     "download-file": "^0.1.5",
+    "ejs": "^2.7.1",
     "express": "^4.17.1",
+    "jsonwebtoken": "^8.5.1",
+    "mailcomposer": "^4.0.2",
     "ms": "^2.1.2",
     "multer": "^1.4.2",
+    "nodemailer": "^6.3.1",
+    "phantom-html-to-pdf": "^0.6.0",
+    "phantomjs": "^2.1.7",
     "uuid": "^3.3.2",
+    "webpage": "^0.3.0",
     "zip-archiver": "0.0.4"
   }
 }
