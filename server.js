@@ -17,6 +17,7 @@ conversion = require("phantom-html-to-pdf")(),
 ejs = require('ejs'),
 nodemailer = require('nodemailer'),
 jwt = require('jsonwebtoken');
+fs = require('fs')
 
 
 // ================================================
@@ -45,7 +46,7 @@ const apiPrefix = "/api/"
 //       CONFIGURING AWS SDK & EXPESS
 // ======================================
 // Avatar Configuration
-
+//
 var config = {
 
     "awsAccessKeyId": process.env.AWSACCESSKEYID,
@@ -55,7 +56,6 @@ var config = {
     "region" : process.env.REGION,
     "usersbucket": process.env.USERSBUCKET,
     "apiVersion" : process.env.APIVERSION,
-    "subject_signature" : process.env.SUBJECTSIGNATURE,
     "jwt_secret" : process.env.JWTSECRET,
     "email_id" : process.env.EMAILID,
     "mail_list" : process.env.MAILLIST,
@@ -64,6 +64,8 @@ var config = {
     "ClientId" : process.env.CLIENTID,
     "react_website_url" : process.env.REACTURL
 };
+
+const subject_signature  = fs.readFileSync("data/base64")
 
 var config_env = config ;
 // var config = require('./config/configuration_keys.json');
@@ -1343,9 +1345,11 @@ app.post(`${apiPrefix}getUserDetailsForIRB`, function(req, res){
 })
 
 app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
-    console.log(req.body);
+    // console.log(req.body);
     var { user_cognito_id, age } =  req.body ;
-    req.body["subject_signature"] = config_env.subject_signature
+    req.body["subject_signature"] = subject_signature
+    let date_details = new Date().toJSON().slice(0,10).split('-').reverse()
+    req.body["date"] = date_details[1] + "/" + date_details[0] + "/" + date_details[2]
             ejs.renderFile(__dirname + '/views/IRBTemplate.ejs', {user_data : req.body }, {}, function (err, str) {
                 // str => Rendered HTML string
                 if(err){
@@ -1361,7 +1365,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                               } }, function(err, pdf) {
 
                    // Gives the path of the actual stream
-                    console.log(pdf.stream.path);
+                    // console.log(pdf.stream.path);
                     uploadIRBForm(user_cognito_id, pdf.stream.path, `${user_cognito_id}_${Number(Date.now()).toString()}.pdf`)
                     .then(response => {
                         // Updating the IRB Form Status in DDB Record of User
@@ -2127,7 +2131,7 @@ app.post(`${apiPrefix}deleteTeam`, function(req, res){
 
 
 // Configuring port for APP
-const port = 3002;
+const port = 3000;
 const server = app.listen(port, function () {
     console.log('Magic happens on ' + port);
 });
