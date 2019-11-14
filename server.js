@@ -140,13 +140,10 @@ function getUserDetails(user_name, cb) {
 function sendMail(recepient, subject, body, attachement_name = null, attachment = null ) {
     return new Promise((resolve, reject) =>{
 
-        var maillist = [
-          "vradars234@gmail.com"
-        ]
         console.log(email);
         var message = {
             from : email,
-            to : maillist,
+            to : recepient,
             subject : subject,
             text : body
         }
@@ -169,7 +166,7 @@ function sendMail(recepient, subject, body, attachement_name = null, attachment 
                console.log('success while sending mail')
                 resolve({
                     status : "success",
-                    log : `Mail sent to vradars234@gmail.com`
+                    log : `Mail sent `
                 })
             }
         })
