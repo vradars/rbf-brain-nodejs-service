@@ -14,10 +14,14 @@ ms = require("ms"),
 download = require('download-file'),
 execFile = require('child_process').execFile;
 conversion = require("phantom-html-to-pdf")(),
+XLSX = require('xlsx'),
 ejs = require('ejs'),
 nodemailer = require('nodemailer'),
 jwt = require('jsonwebtoken');
 fs = require('fs')
+moment = require('moment');
+var _ = require('lodash');
+
 
 
 // ================================================
@@ -1311,10 +1315,302 @@ return new Promise((resolve, reject)=>{
   })
 }
 
+function parseDate(date, arg, timezone) {
+    // var result = 0, arr = arg.split(':')
+
+    arg = arg.replace(".",":");
+    var t = arg.split(":");
+    var milliseconds ;
+    var time_type ;
+    milliseconds = t[3].split(" ")[0];
+    // x stores parsed time format
+    var x = "";
+    if(t[3].indexOf('P') > -1){
+        x = `${t[0]}:${t[1]}:${t[2]} ${t[3].split(" ")[1]}`
+    }
+    return moment.utc(date  + " , " +   x , 'MM/DD/YYYY , hh:mm:ss a', true).milliseconds(Number(milliseconds)).valueOf();
+}
+
+function convertXLSXDataToJSON(buf,cb){
+    // york_data.xlsx
+
+    var wb = XLSX.read(buf, {type:'buffer'});
+    var sheet_name_list = wb.SheetNames;
+    sheet_name_list.forEach(function(y) {
+        var worksheet = wb.Sheets[y];
+        var headers = {};
+        var data = [];
+        for(z in worksheet) {
+            if(z[0] === '!') continue;
+            //parse out the column, row, and value
+            var col = z.substring(0,1);
+            var row = parseInt(z.substring(1));
+            var value = worksheet[z].v;
+
+            //store header names
+            if(row == 1) {
+
+                if(value == "Athlete"){
+                    value = "player_id"
+                }
+                headers[col] = value
+                .split(" ")
+                .join("_")
+                .replace(/[{()}]/g, '')
+                .toLowerCase();
+                continue;
+            }
+
+            if(!data[row]) data[row]={};
+
+            data[row][headers[col]] = value;
+
+
+
+        }
+        //drop those first two rows which are empty
+        data.shift();
+        data.shift();
+        var data_array = data.filter(function(el) {
+            return el.false_positive == false;
+        });
+        console.log("The impact data found is ", data_array.length);
+        for(var i = 0 ; i < data_array.length ; i++){
+            var d = data_array[i];
+            // TODO : Parse Date here
+            data_array[i]["timestamp"] = Number(parseDate(d.date, d.time, d.time_zone)).toString();
+            data_array[i]["simulation_status"] = "pending";
+            data_array[i].player_id = data_array[i].player_id + "$" + data_array[i].timestamp;
+        }
+        cb(data_array);
+    });
+
+}
+
+function storeSensorData(sensor_data_array){
+    return new Promise((resolve, reject) =>{
+        var counter = 0 ;
+        if(sensor_data_array.length == 0 ){
+            resolve(true);
+        }
+        for(var i = 0 ; i < sensor_data_array.length ; i++){
+            
+            let param = {
+                TableName: "sensor_data",
+                Item: sensor_data_array[i]
+            };
+            docClient.put(param, function (err, data) {
+                counter++;
+                if (err) {
+                    console.log(err);
+                    reject(err)
+                }
+                if(counter == sensor_data_array.length){
+                    resolve(true);
+                }
+            })
+        }
+    })
+}
+
+function addPlayerToTeamInDDB(org, team, player_id) {
+    return new Promise((resolve, reject)=>{
+        // if flag is true it means data array is to be created
+        let params = {
+            TableName: "teams",
+            Key: {
+                "organization": org,
+                "team_name" : team
+            }
+        };
+        docClient.get(params, function (err, data) {
+            if (err) {
+                reject(err);
+            }
+            else {
+                if (Object.keys(data).length == 0 && data.constructor === Object) {
+                    var dbInsert = {
+                        TableName: "teams",
+                        Item: { organization : org,
+                            team_name : team,
+                            player_list : [player_id] }
+                        };
+                        docClient.put(dbInsert, function (err, data) {
+                            if (err) {
+                                console.log(err);
+                                reject(err);
+
+                            } else {
+                                resolve(data)
+                            }
+                        });
+                    }
+                    else {
+                        // If Player does not exists in Team
+                        if(data.Item.player_list.indexOf(player_id) <= -1){
+                            var dbInsert = {
+                                TableName: "teams",
+                                Key: { "organization" : org,
+                                "team_name" : team
+                            },
+                            UpdateExpression: "set #list = list_append(#list, :newItem)",
+                            ExpressionAttributeNames: {
+                                "#list": "player_list"
+                            },
+                            ExpressionAttributeValues: {
+                                ":newItem": [player_id]
+                            },
+                            ReturnValues: "UPDATED_NEW"
+                        }
+
+                        docClient.update(dbInsert, function (err, data) {
+                            if (err) {
+                                console.log("ERROR WHILE CREATING DATA",err);
+                                reject(err);
+
+                            } else {
+                                resolve(data)
+                            }
+                        });
+                    }
+                    else{
+                        resolve("PLAYER ALREADY EXISTS IN TEAM");
+                    }
+
+                }
+            }
+        });
+
+
+    })
+}
+
+function base64_encode(file) {
+    
+    // read binary data
+    let bitmap = fs.readFileSync(file);
+    
+    // convert binary data to base64 encoded string
+	return new Buffer(bitmap).toString('base64');
+}
+
 // Clearing the cookies
 app.get(`/`, (req, res) => {
     res.send("TesT SERVICE HERE");
 })
+
+app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
+ 
+     // The file content will be in 'upload_file' parameter
+     let buffer = Buffer.from(req.body.upload_file, 'base64');
+ 
+     // TODO : upload file in s3 ( Which bucket ? )
+ 
+     // Converting xlsx file data into JSON
+     convertXLSXDataToJSON(buffer, function(items) {
+
+         
+         items.map((element) => {
+             return element.organization = "PSU";
+         });
+ 
+         const new_items_array = _.map(items, o => _.extend({organization: "PSU"}, o));
+ 
+         storeSensorData(new_items_array)
+         .then(flag => {
+ 
+             var players = items.map(function (player) {
+                 return {    player_id : player.player_id.split("$")[0],
+                 team : player.team,
+                 organization : player.organization
+             }
+      	});
+
+         var unique_players = _.uniq(players, 'player_id');
+         const result = [];
+         const map = new Map();
+ 
+         for (const item of players) {
+             if(!map.has(item.player_id)){
+                 map.set(item.player_id, true);    // set any value to Map
+                 result.push(item);
+             }
+         }
+         if(result.length == 0){
+             res.send({
+                 message : "success"
+             })
+         }
+         else{
+             // Run simulation here and send data
+             // {
+             //     "player_id" : "STRING",
+             //     "team" : "STRING",
+             //     "organization" : "STRING"
+             // }
+             var counter = 0 ;
+             console.log("UNIQUE PLAYERS ++++++++++++++ ",result);
+ 
+             for(var i =0 ; i< result.length ; i++){
+                 var temp = result[i];
+ 
+                addPlayerToTeamInDDB(temp.organization, temp.team, temp.player_id)
+                .then(d => {
+                	    // Generate simulation for player
+                         getCumulativeSensorData(temp)
+                         .then(player_data_array => {
+                             if(player_data_array.length == 0 ){
+ 
+                                 console.log('player data array length 0');
+                             }
+                             else{
+ 
+                                 var counter = 0 ;
+                                console.log('PLAYER DATA ARRAY LENGTH IS ', player_data_array.length)
+                                 
+                                let image_array = []
+                                 for(var i = 0 ; i < player_data_array.length ; i++){
+ 
+                                     var temp = player_data_array[i];
+                                     var index = i ;
+                                   console.log('TEMP OBJECT IS ', temp)
+                                     generateSimulationForPlayer(temp, index)
+                                     .then(d => {
+                                       console.log('COUNTER IS ', counter +1 );
+                                             counter++;
+                                             image_array.push(d.base64)
+                                             console.log('generateSimulationForPlayer' ,d);
+                                             if(counter == player_data_array.length - 1){
+                                                 res.send({
+                                                     message : "success",
+                                                     images : image_array
+                                                 })
+                                             }
+                                     })
+                                     .catch( err => {
+                                   		console.log('ERROR IN GENERATE SIMULATION IMAGE ', err);
+                                     })
+                             }
+						          }
+                        }).
+                     catch(err => {
+                      console.log('ERROR');
+                     })
+                 })
+                 .catch(err => {
+                     counter = result.length ;
+                     res.send({
+                         message : "failure"
+                     })
+                 })
+             }
+         }
+     })
+  })
+})
+
+
+
 
 app.post(`${apiPrefix}getUserDetailsForIRB`, function(req, res){
     console.log(req.body);
@@ -1477,7 +1773,7 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
                 })
             }
             else{
-              executeShellCommands(`xvfb-run ./../MergePolyData/build/ImageCapture ./avatars${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`)
+              executeShellCommands(`xvfb-run ./../MergePolyData/build/ImageCapture ./avatars/${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`)
                 .then((data)=>{
                     // Upload the selfie image generated on S3
                     uploadGeneratedSelfieImage(req.body,function(err,data){
@@ -1896,7 +2192,7 @@ app.post(`${apiPrefix}getAllRosters`, function(req, res){
 })
 
 function generateSimulationForPlayer(obj, index){
-    return new Promise((reject, resolve)=>{
+    return new Promise((resolve, reject)=>{
         var playerData = {
             "player": {
                 "name": "",
@@ -1954,9 +2250,12 @@ function generateSimulationForPlayer(obj, index){
         })
         .then(d =>{
             console.log(d);
+          let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
+
           resolve({
             message : "success",
-            data  : d
+            data  : d,
+            base64 : base64_encode(simulationFilePath)
           })
         })
         .catch(err => {
