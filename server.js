@@ -163,7 +163,7 @@ function sendMail(recepient, subject, body, attachement_name = null, attachment 
         }
 
         transport.sendMail(message,(err,info) =>{
-            console.log(info, );
+            
             if(err){
                 reject(err)
                 console.log("error while sending mail", err);
