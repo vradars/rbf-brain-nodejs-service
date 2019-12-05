@@ -72,8 +72,8 @@ var config = {
 const subject_signature  = fs.readFileSync("data/base64")
 
 var config_env = config ;
-var config = require('./config/configuration_keys.json');
-var config_env = config;
+// var config = require('./config/configuration_keys.json');
+// var config_env = config;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
