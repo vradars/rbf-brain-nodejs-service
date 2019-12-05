@@ -68,8 +68,8 @@ var config = {
 const subject_signature  = fs.readFileSync("data/base64")
 
 var config_env = config ;
-// var config = require('./config/configuration_keys.json');
-// var config_env = config;
+var config = require('./config/configuration_keys.json');
+var config_env = config;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -159,7 +159,7 @@ function sendMail(recepient, subject, body, attachement_name = null, attachment 
         }
 
         transport.sendMail(message,(err,info) =>{
-            console.log(info, );
+            
             if(err){
                 reject(err)
                 console.log("error while sending mail", err);
@@ -360,6 +360,40 @@ function uploadINPFile(user_id,timestamp,cb){
 
 }
 
+
+function uploadVTKFile(user_id,timestamp,cb){
+
+
+    var uploadParams = {
+        Bucket: config.usersbucket,
+        Key: '', // pass key
+        Body: null, // pass file body
+    };
+
+    const params = uploadParams;
+
+    fs.readFile(`../users_data/${user_id}/rbf/${timestamp}.vtk`, function (err, headBuffer) {
+        if (err) {
+            cb(err,'');
+        }
+        else {
+            params.Key = user_id + "/profile/rbf/vtk/" + timestamp + ".vtk";
+            params.Body = headBuffer;
+            // Call S3 Upload
+            s3.upload(params, (err, data) => {
+                if (err) {
+                    cb(err,'');
+                }
+                else {
+                    cb('',data);
+                }
+            });
+
+        }
+    })
+
+}
+
 function uploadSimulationFile(user_id,timestamp,cb){
 
 
@@ -534,7 +568,16 @@ function generateINP(user_id){
 
                                             }
                                             else{
-                                                resolve(data);
+                                              uploadVTKFile(user_id, timestamp, (err, data)=>{
+
+                                                if(err){
+
+                                                    reject(err);
+                                                }
+                                                else{
+                                                    resolve(data);
+                                                }
+                                              })
                                             }
 
 
