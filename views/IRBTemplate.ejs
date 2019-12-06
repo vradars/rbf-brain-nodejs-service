@@ -43,6 +43,15 @@
     position: absolute;
     margin-top: -15px;
 }
+
+.top-title{
+    color: #3174B9 !important;
+    font-size: 1.2em !important;
+}
+.center-text {
+text-align : center 
+}
+
     </style>
 </head>
 <body>
@@ -52,24 +61,20 @@
 
         <br>
         <br>
+        <div class="bold-400 top-title">CONSENT FOR RESEARCH</div>
+        <div class="bold-400 center top-title">The Pennsylvania State University</div>
         <br>
-        <br>
-        <div class="bold-400">CONSENT FOR RESEARCH</div>
-        <div class="center">The Pennsylvania State University</div>
-        <br>
-        <br>
-        <br>
-        <div>Title of Project: CAREER: Multiscale Modeling of Axonal Fiber Bundles in the Brain</div>
-        <div>    Principal Investigator: Dr. Reuben H. Kraft</div>
-        <div>Address: 320 Leonhard Building, University Park, PA 16802</div>
-        <div>Telephone Number: 814-867-4570</div>
+        <div class="center-text">Title of Project: CAREER: Multiscale Modeling of Axonal Fiber Bundles in the Brain</div>
+        <div class="center-text">    Principal Investigator: Dr. Reuben H. Kraft</div>
+        <div class="center-text">Address: 320 Leonhard Building, University Park, PA 16802</div>
+        <div class="center-text">Telephone Number: 814-867-4570</div>
         <br>
         <div ><span class="cls_004">Subject’s Printed Name: <span style="
     text-decoration: underline;
 "><%-user_data.first_name%> <%-user_data.last_name%></span></span></div>
 
         <br>
-        <div class="border-box">
+        <div style="border : none ; padding : 0px;" class="border-box">
             <p>
                 We are asking you to be in a research study. This form gives you information about the research.
                 Whether or not you take part is up to you. You can choose not to take part. <br>You can agree to take part
@@ -327,22 +332,16 @@
                                             <br>
                                             <br>
                                             <div>
-                                                <div ><img height="100px" width="250px" src="<%-user_data.subject_signature%>" ></div>
-                                                <div class="date"><%-user_data.date%> </div>
-                                                <div class="name">Reuben Kraft</div>
+                                                Signature of Subject 
+                                                <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.subject_signature%> ></div><hr>
                                             </div>
                                             <div>
-                                              <span class="signs-pad">
-                                                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; Signature of Subject &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                                              <span class="signs-pad">
-                                                &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
-                                                &nbsp;&nbsp;
-                                                Date  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                              </span>
-                                              <span class="signs-pad">
-                                               &nbsp;&nbsp;
-                                                Subject Name&nbsp;&nbsp;</span>
+                                       
+                                              <div >
+                                                Subject Name : Reuben Kraft</div>
+                                              <div >
+                                                Date : <%-user_data.date%>
+                                              </div>
                                             </div>
                                             <div>(Only approved investigators for this research may explain the research and obtain informed consent.)</div>
                                             <br>
@@ -373,23 +372,24 @@
                                                 <br>
                                                 <br>
                                                 <div>
-                                                    <div ><img width="250px" src=<%-user_data.user_signature%> ></div>
-                                                    <div class="date"><%-user_data.date%> </div>
-                                                    <div class="name"><%-user_data.first_name%> <%-user_data.last_name%></div>
+                                                <div >
+                                                   
+                                                    Signature of Subject 
+                                                    </div>
+                                                    <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.user_signature%> ></div>
+                                                    <hr>
+                                                    
                                                 </div>
-
+                                                
                                                 <div>
-                                                  <span class="signs-pad">
-                                                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; Signature of Subject &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                                                  <span class="signs-pad">
-                                                    &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
-                                                    &nbsp;&nbsp;
-                                                    Date  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                                  </span>
-                                                  <span class="signs-pad">
-                                                   &nbsp;&nbsp;
-                                                    Subject Name&nbsp;&nbsp;</span>
+                                                  
+                                                  <div >
+                                                   
+                                                    Subject Name : <%-user_data.first_name%> <%-user_data.last_name%>
+                                                    </div>
+                                                  <div >                                          
+                                                    Date : <%-user_data.date%>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <br>
@@ -403,9 +403,9 @@
                                                 <br>
                                                 <% if(user_data.guardian_first_name){ %>
                                                     <div>
-                                                        <div ><img width="250px" src=<%-user_data.guardian_signature%> ></div>
-                                                        <div class="date"><%-user_data.date%> </div>
-                                                        <div class="name"><%-user_data.guardian_first_name%> <%-user_data.guardian_last_name%></div>
+                                                        Signature of Guardian
+                                                        <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.guardian_signature%> ></div><hr>
+                                                        
                                                     </div>
                                                 <% } else{ %>
                                                     <div></div>
@@ -413,18 +413,22 @@
 
 
                                                 <div>
-                                                  <span class="signs-pad">
-                                                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; Signature of Guardian &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                                                  <span class="signs-pad">
-                                                    &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
-                                                    &nbsp;&nbsp;
-                                                    Date  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                                  </span>
-                                                  <span class="signs-pad">
-                                                   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                                   &nbsp;&nbsp;&nbsp;&nbsp;
-                                                    Name&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                                                <% if(user_data.guardian_first_name){ %>
+                                                    
+                                                    
+                                                  <div>
+                                                    Name : <%-user_data.guardian_first_name%> <%-user_data.guardian_last_name%></div>
+                                                    <div >
+                                                    Date : <%-user_data.date%> 
+                                                  </div>
+                                                  
+                                                <% } else{ %>
+                                                    <div></div>
+                                                <% } %>
+                                                
+                                                  
+                                                  
+                                                  
                                                 </div>
                                             </div>
                                             <br>
@@ -451,26 +455,23 @@
                                             <br>
                                             <br>
                                             <div>
-                                                <div ><img width="250px" src=<%-user_data.user_signature%> ></div>
-                                                <div class="date"><%-user_data.date%> </div>
-                                                <div class="name"><%-user_data.first_name%> <%-user_data.last_name%></div>
+                                                Signature of Subject
+                                                <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.user_signature%> ></div><hr>
+                                                
                                             </div>
 
 
                                             <div>
-                                                <span class="signs-pad">
-                                                   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; Signature of Subject &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                                                <span class="signs-pad">
-                                                  &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
-                                                  &nbsp;&nbsp;
-                                                  Date  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                                </span>
-                                                <span class="signs-pad">
-                                                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                                 &nbsp;&nbsp;&nbsp;&nbsp;
-                                                  Name&nbsp;&nbsp;&nbsp;&nbsp;
-                                                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                                                
+                                                
+                                                <div >
+                                                 
+                                                  Name : <%-user_data.first_name%> <%-user_data.last_name%>
+                                                </div>
+                                                <div >
+                                                  
+                                                  Date : <%-user_data.date%>
+                                                </div>
                                             </div>
                                             <br>
                                             <br>
