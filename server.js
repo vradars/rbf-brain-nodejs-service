@@ -1856,24 +1856,24 @@ app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(r
                                             else{
                                                 // Create Simulation File
 
-                                                generateSimulationFile(req.body.user_cognito_id)
-                                                .then((data)=>{
+                                                //generateSimulationFile(req.body.user_cognito_id)
+                                                //.then((data)=>{
 
                                                     // Update status of simulation file
-                                                    return updateSimulationFileStatusInDB(req.body)
+                                                  //  return updateSimulationFileStatusInDB(req.body)
 
-                                                }).then((data) => {
+                                                //}).then((data) => {
 
                                                   res.send({
                                                       message : "success"
                                                   })
 
-                                                }).catch((err)=>{
-                                                    res.send({
-                                                        message : "failure",
-                                                        error : err
-                                                    });
-                                                })
+                                                //}).catch((err)=>{
+                                                 //   res.send({
+                                                 //       message : "failure",
+                                                 //       error : err
+                                                 //   });
+                                                // })
                                             }
                                         })
 
