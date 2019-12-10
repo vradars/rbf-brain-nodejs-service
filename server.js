@@ -72,8 +72,8 @@ var config = {
 const subject_signature  = fs.readFileSync("data/base64")
 
 var config_env = config ;
-// var config = require('./config/configuration_keys.json');
-// var config_env = config;
+//var config = require('./config/configuration_keys.json');
+//var config_env = config;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -151,7 +151,13 @@ function sendMail(recepient, subject, body, attachement_name = null, attachment 
             from : email,
             to : recepient,
             subject : subject,
-            text : body
+        }
+        if(body.includes('html'))
+        {
+            message["html"] = body ;
+        }
+        else{
+            message["text"] = body ;
         }
 
         if(attachment != null){
@@ -163,7 +169,7 @@ function sendMail(recepient, subject, body, attachement_name = null, attachment 
         }
 
         transport.sendMail(message,(err,info) =>{
-            
+
             if(err){
                 reject(err)
                 console.log("error while sending mail", err);
@@ -1437,7 +1443,7 @@ function storeSensorData(sensor_data_array){
             resolve(true);
         }
         for(var i = 0 ; i < sensor_data_array.length ; i++){
-            
+
             let param = {
                 TableName: "sensor_data",
                 Item: sensor_data_array[i]
@@ -1529,10 +1535,10 @@ function addPlayerToTeamInDDB(org, team, player_id) {
 }
 
 function base64_encode(file) {
-    
+
     // read binary data
     let bitmap = fs.readFileSync(file);
-    
+
     // convert binary data to base64 encoded string
 	return new Buffer(bitmap).toString('base64');
 }
@@ -1543,25 +1549,25 @@ app.get(`/`, (req, res) => {
 })
 
 app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
- 
+
      // The file content will be in 'upload_file' parameter
      let buffer = Buffer.from(req.body.upload_file, 'base64');
- 
+
      // TODO : upload file in s3 ( Which bucket ? )
- 
+
      // Converting xlsx file data into JSON
      convertXLSXDataToJSON(buffer, function(items) {
 
-         
+
          items.map((element) => {
              return element.organization = "PSU";
          });
- 
+
          const new_items_array = _.map(items, o => _.extend({organization: "PSU"}, o));
- 
+
          storeSensorData(new_items_array)
          .then(flag => {
- 
+
              var players = items.map(function (player) {
                  return {    player_id : player.player_id.split("$")[0],
                  team : player.team,
@@ -1572,7 +1578,7 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
          var unique_players = _.uniq(players, 'player_id');
          const result = [];
          const map = new Map();
- 
+
          for (const item of players) {
              if(!map.has(item.player_id)){
                  map.set(item.player_id, true);    // set any value to Map
@@ -1593,27 +1599,27 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
              // }
              var counter = 0 ;
              console.log("UNIQUE PLAYERS ++++++++++++++ ",result);
- 
+
              for(var i =0 ; i< result.length ; i++){
                  var temp = result[i];
- 
+
                 addPlayerToTeamInDDB(temp.organization, temp.team, temp.player_id)
                 .then(d => {
                 	    // Generate simulation for player
                          getCumulativeSensorData(temp)
                          .then(player_data_array => {
                              if(player_data_array.length == 0 ){
- 
+
                                  console.log('player data array length 0');
                              }
                              else{
- 
+
                                  var counter = 0 ;
                                 console.log('PLAYER DATA ARRAY LENGTH IS ', player_data_array.length)
-                                 
+
                                 let image_array = []
                                  for(var i = 0 ; i < player_data_array.length ; i++){
- 
+
                                      var temp = player_data_array[i];
                                      var index = i ;
                                    console.log('TEMP OBJECT IS ', temp)
@@ -1623,7 +1629,7 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                                              counter++;
                                              image_array.push(d.base64)
                                              console.log('generateSimulationForPlayer' ,d);
-                                             if(counter == player_data_array.length - 1){
+                                             if(counter == player_data_array.length){
                                                  res.send({
                                                      message : "success",
                                                      images : image_array
@@ -2234,6 +2240,55 @@ app.post(`${apiPrefix}getAllRosters`, function(req, res){
 
 })
 
+app.post(`${apiPrefix}getUpdatesAndNotifications`, (req, res) => {
+    var subject = `${req.body.first_name} ${req.body.last_name} subscribed for updates`;
+    ejs.renderFile(__dirname + '/views/UpdateTemplate.ejs', {data : req.body }, {}, function (err, str) {
+        if(err){
+            res.send({
+                message : "failure",
+                error : err
+            })
+        }
+        else{
+            sendMail(config_env.mail_list, subject, str)
+            .then(response => {
+                //  Send the mail to User who registered for updates...
+                ejs.renderFile(__dirname + '/views/AdminRespondUpdateTemplate.ejs', {data : req.body }, {}, function (err, str) {
+                    if(err){
+                        res.send({
+                            message : "failure",
+                            error : err
+                        })
+                    }
+                    else{
+                        subject = "NSFCAREER.IO | Thank you for subscribing !";
+                        sendMail(req.body.email, subject, str)
+                        .then(response => {
+                            res.send({
+                                message : "success",
+                                data : response
+                            })
+                        })
+                        .catch(err => {
+                            res.send({
+                                message : "failure",
+                                error : err
+                            })
+                        })
+                    }
+                })
+
+            })
+            .catch(err => {
+                res.send({
+                    message : "failure",
+                    error : err
+                })
+            })
+        }
+    })
+})
+
 function generateSimulationForPlayer(obj, index){
     return new Promise((resolve, reject)=>{
         var playerData = {
@@ -2473,7 +2528,7 @@ app.post(`${apiPrefix}deleteTeam`, function(req, res){
 
 
 // Configuring port for APP
-const port = 3000;
+const port = 5005;
 const server = app.listen(port, function () {
     console.log('Magic happens on ' + port);
 });
