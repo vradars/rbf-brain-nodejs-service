@@ -2528,7 +2528,7 @@ app.post(`${apiPrefix}deleteTeam`, function(req, res){
 
 
 // Configuring port for APP
-const port = 5005;
+const port = 3000;
 const server = app.listen(port, function () {
     console.log('Magic happens on ' + port);
 });
