@@ -333,12 +333,12 @@ text-align : center
                                             <br>
                                             <div>
                                                 Signature of Subject 
-                                                <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.subject_signature%> ></div><hr>
+                                                <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.user_signature%> ></div><hr>
                                             </div>
                                             <div>
                                        
                                               <div >
-                                                Subject Name : Reuben Kraft</div>
+                                                Subject Name : <%-user_data.first_name%> <%-user_data.last_name%></div>
                                               <div >
                                                 Date : <%-user_data.date%>
                                               </div>
@@ -358,6 +358,18 @@ text-align : center
                                                     Your signature below means that you have received this information, have asked the questions you currently have about the research and those questions have been answered. You will receive a copy of the signed and dated form to keep for future reference.
 
                                                 </p>
+                                                <div>
+                                                Signature of Person Giving Informed Consent  
+                                                <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.subject_signature%> ></div><hr>
+                                            </div>
+                                            <div>
+                                       
+                                              <div >
+                                                Subject Name : Reuben Kraft</div>
+                                              <div >
+                                                Date : <%-user_data.date%>
+                                              </div>
+                                            </div>
                                             </div>
 
 
