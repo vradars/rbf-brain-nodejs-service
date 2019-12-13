@@ -144,6 +144,7 @@ function getUserDetails(user_name, cb) {
 
 
 function sendMail(recepient, subject, body, attachement_name = null, attachment = null ) {
+    console.log("Mail is being sent to ", recepient, " by ", email) ;
     return new Promise((resolve, reject) =>{
 
         console.log(email);
@@ -151,6 +152,7 @@ function sendMail(recepient, subject, body, attachement_name = null, attachment 
             from : email,
             to : recepient,
             subject : subject,
+            priority : 'high'
         }
         if(body.includes('html'))
         {
@@ -1761,9 +1763,30 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
                             // Send consent form link to guardian
                             let link = `Please click on the below provided link to confirm minor's account :\n ${config_env.react_website_url}IRBParentConsent?key=${token}`;
-                            return sendMail(req.body.guardian_mail, "IRB FORM", link, "IRB_CONSENT.pdf",  pdf.stream.path );
+                            ejs.renderFile(__dirname + '/views/ConfirmMinorAccount.ejs', {data : {url : `${config_env.react_website_url}IRBParentConsent?key=${token}`} }, {}, function (err, str) {
+                                if(err){
+                                    res.send({
+                                        message  : "failure",
+                                        error : err
+                                    })
+                                }
+                                else{
 
-
+                                    sendMail(req.body.guardian_mail, "IRB FORM CONSENT APPLICATION", str, "IRB_CONSENT.pdf",  pdf.stream.path)
+                                    .then(response => {
+                                        res.send({
+                                            message : "success",
+                                            data : response
+                                        })
+                                    })
+                                    .catch(err => {
+                                        res.send({
+                                            message : "failure",
+                                            data : err
+                                        })
+                                    })
+                                }
+                            })
                           }
 
                         }
@@ -2239,6 +2262,7 @@ app.post(`${apiPrefix}getAllRosters`, function(req, res){
     res.send(getAllRosters());
 
 })
+
 
 app.post(`${apiPrefix}getUpdatesAndNotifications`, (req, res) => {
     var subject = `${req.body.first_name} ${req.body.last_name} subscribed for updates`;
