@@ -12,14 +12,16 @@ path = require("path"),
 multer = require('multer'),
 ms = require("ms"),
 download = require('download-file'),
-execFile = require('child_process').execFile;
+execFile = require('child_process').execFile,
 conversion = require("phantom-html-to-pdf")(),
 XLSX = require('xlsx'),
 ejs = require('ejs'),
 nodemailer = require('nodemailer'),
-jwt = require('jsonwebtoken');
-fs = require('fs')
+jwt = require('jsonwebtoken'),
+fs = require('fs'),
+shortid = require('shortid'),
 moment = require('moment');
+
 var _ = require('lodash');
 
 
@@ -177,7 +179,7 @@ function sendMail(recepient, subject, body, attachement_name = null, attachment 
                 console.log("error while sending mail", err);
             }
             else{
-               console.log('success while sending mail')
+                console.log('success while sending mail')
                 resolve({
                     status : "success",
                     log : `Mail sent `
@@ -481,18 +483,18 @@ function generateSimulationFile(user_id){
 
         // Doing Simulation on generic brain.inp file
         var cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 input.json`
-      console.log(cmd);
+        console.log(cmd);
         executeShellCommands(cmd).then((data)=>{
 
             // Doing Post Processing on simulation
             var timestamp = Date.now();
 
             cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${user_id}-${timestamp}.png`;
-          console.log(cmd);
+            console.log(cmd);
             executeShellCommands(cmd).then((data)=>{
                 uploadSimulationFile(user_id,timestamp,(err,data)=>{
                     if(err){
-                      console.log(err);
+                        console.log(err);
                         reject(err);
                     }
                     else{
@@ -504,12 +506,12 @@ function generateSimulationFile(user_id){
 
             })
             .catch((error)=>{
-              console.log(err);
+                console.log(err);
                 reject(error);
             })
 
         }).catch((error)=>{
-          console.log(err);
+            console.log(err);
             reject(error);
 
         })
@@ -580,16 +582,16 @@ function generateINP(user_id){
 
                                             }
                                             else{
-                                              uploadVTKFile(user_id, timestamp, (err, data)=>{
+                                                uploadVTKFile(user_id, timestamp, (err, data)=>{
 
-                                                if(err){
+                                                    if(err){
 
-                                                    reject(err);
-                                                }
-                                                else{
-                                                    resolve(data);
-                                                }
-                                              })
+                                                        reject(err);
+                                                    }
+                                                    else{
+                                                        resolve(data);
+                                                    }
+                                                })
                                             }
 
 
@@ -669,27 +671,27 @@ function updateINPFileStatusInDB(obj,cb){
 
 
 function updateSimulationFileStatusInDB(obj){
-  return new Promise((resolve,reject)=>{
-    var userParams = {
-        TableName: "users",
-        Key: {
+    return new Promise((resolve,reject)=>{
+        var userParams = {
+            TableName: "users",
+            Key: {
 
-            "user_cognito_id": obj.user_cognito_id
-        },
-        UpdateExpression: "set is_selfie_simulation_file_uploaded = :is_selfie_simulation_file_uploaded",
-        ExpressionAttributeValues: {
-            ":is_selfie_simulation_file_uploaded" : true
-        },
-        ReturnValues: "UPDATED_NEW"
-    };
-    docClient.update(userParams, (err, data) => {
-        if (err) {
-            reject(err);
-        } else {
-            resolve(data);
-        }
-    })
-  });
+                "user_cognito_id": obj.user_cognito_id
+            },
+            UpdateExpression: "set is_selfie_simulation_file_uploaded = :is_selfie_simulation_file_uploaded",
+            ExpressionAttributeValues: {
+                ":is_selfie_simulation_file_uploaded" : true
+            },
+            ReturnValues: "UPDATED_NEW"
+        };
+        docClient.update(userParams, (err, data) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(data);
+            }
+        })
+    });
 
 }
 
@@ -1300,70 +1302,77 @@ function writeJsonToFile(path, jsonObject){
         });
     })
 }
-function uploadPlayerSimulationFile(user_id, file_path, file_name, date){
+function uploadPlayerSimulationFile(user_id, file_path, file_name, date, image_id=NULL){
 
-return new Promise((resolve, reject)=>{
-    var uploadParams = {
-        Bucket: config.usersbucket,
-        Key: '', // pass key
-        Body: null, // pass file body
-    };
+    return new Promise((resolve, reject)=>{
+        var uploadParams = {
+            Bucket: config.usersbucket,
+            Key: '', // pass key
+            Body: null, // pass file body
+        };
 
-    const params = uploadParams;
+        const params = uploadParams;
 
-    fs.readFile(file_path, function (err, headBuffer) {
-        if (err) {
-          reject(err);
-        }
-        else {
-            params.Key = user_id + `/simulation/${date}/` + file_name ;
-            params.Body = headBuffer;
-            // Call S3 Upload
-            s3.upload(params, (err, data) => {
-                if (err) {
-                  reject(err);
-                }
-                else {
-                  resolve(data);
-                }
-            });
+        fs.readFile(file_path, function (err, headBuffer) {
+            if (err) {
+                reject(err);
+            }
+            else {
+                updateSimulationImageToDDB(image_id, headBuffer.toString("base64"))
+                .then(value => {
 
-        }
+                    params.Key = user_id + `/simulation/${date}/` + file_name ;
+                    params.Body = headBuffer;
+                    // Call S3 Upload
+                    s3.upload(params, (err, data) => {
+                        if (err) {
+                            reject(err);
+                        }
+                        else {
+                            // TODO -> Write the buffer to Image BASE64 & Update it in DB
+                            resolve(data)
+                        }
+                    });
+                })
+                .catch(err => {
+                    reject(data);
+                })
+            }
+        })
     })
-  })
 }
 
 function uploadIRBForm(user_id, file_path, file_name){
 
-return new Promise((resolve, reject)=>{
-    var uploadParams = {
-        Bucket: config.usersbucket,
-        Key: '', // pass key
-        Body: null, // pass file body
-    };
+    return new Promise((resolve, reject)=>{
+        var uploadParams = {
+            Bucket: config.usersbucket,
+            Key: '', // pass key
+            Body: null, // pass file body
+        };
 
-    const params = uploadParams;
+        const params = uploadParams;
 
-    fs.readFile(file_path, function (err, headBuffer) {
-        if (err) {
-          reject(err);
-        }
-        else {
-            params.Key = user_id + `/irb/` + file_name ;
-            params.Body = headBuffer;
-            // Call S3 Upload
-            s3.upload(params, (err, data) => {
-                if (err) {
-                  reject(err);
-                }
-                else {
-                  resolve(data);
-                }
-            });
+        fs.readFile(file_path, function (err, headBuffer) {
+            if (err) {
+                reject(err);
+            }
+            else {
+                params.Key = user_id + `/irb/` + file_name ;
+                params.Body = headBuffer;
+                // Call S3 Upload
+                s3.upload(params, (err, data) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        resolve(data);
+                    }
+                });
 
-        }
+            }
+        })
     })
-  })
 }
 
 function parseDate(date, arg, timezone) {
@@ -1464,200 +1473,237 @@ function storeSensorData(sensor_data_array){
     })
 }
 
-function addPlayerToTeamInDDB(org, team, player_id) {
-    return new Promise((resolve, reject)=>{
-        // if flag is true it means data array is to be created
-        let params = {
-            TableName: "teams",
-            Key: {
-                "organization": org,
-                "team_name" : team
-            }
-        };
-        docClient.get(params, function (err, data) {
-            if (err) {
-                reject(err);
-            }
-            else {
-                if (Object.keys(data).length == 0 && data.constructor === Object) {
-                    var dbInsert = {
-                        TableName: "teams",
-                        Item: { organization : org,
-                            team_name : team,
-                            player_list : [player_id] }
-                        };
-                        docClient.put(dbInsert, function (err, data) {
-                            if (err) {
-                                console.log(err);
-                                reject(err);
+function updateSimulationImageToDDB(image_id, base64_encoded_simulation_image, status = "completed"){
+    return new Promise((resolve, reject) => {
+        if(image_id == NULL){
+            return resolve({ message : "No Image Simulation ID provided"});
+        }
+        else{
+            var dbInsert = {
+                TableName: "simulation_images",
+                Item: { image_id : image_id,
+                    base64_encoded_simulation_image : base64_encoded_simulation_image,
+                    status : status }
+                };
+                docClient.put(dbInsert, function (err, data) {
+                    if (err) {
+                        console.log(err);
+                        reject(err);
 
-                            } else {
-                                resolve(data)
-                            }
-                        });
+                    } else {
+                        resolve(data)
                     }
-                    else {
-                        // If Player does not exists in Team
-                        if(data.Item.player_list.indexOf(player_id) <= -1){
-                            var dbInsert = {
-                                TableName: "teams",
-                                Key: { "organization" : org,
-                                "team_name" : team
-                            },
-                            UpdateExpression: "set #list = list_append(#list, :newItem)",
-                            ExpressionAttributeNames: {
-                                "#list": "player_list"
-                            },
-                            ExpressionAttributeValues: {
-                                ":newItem": [player_id]
-                            },
-                            ReturnValues: "UPDATED_NEW"
+                });
+        }
+        })
+    }
+
+    function addPlayerToTeamInDDB(org, team, player_id) {
+        return new Promise((resolve, reject)=>{
+            // if flag is true it means data array is to be created
+            let params = {
+                TableName: "teams",
+                Key: {
+                    "organization": org,
+                    "team_name" : team
+                }
+            };
+            docClient.get(params, function (err, data) {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    if (Object.keys(data).length == 0 && data.constructor === Object) {
+                        var dbInsert = {
+                            TableName: "teams",
+                            Item: { organization : org,
+                                team_name : team,
+                                player_list : [player_id] }
+                            };
+                            docClient.put(dbInsert, function (err, data) {
+                                if (err) {
+                                    console.log(err);
+                                    reject(err);
+
+                                } else {
+                                    resolve(data)
+                                }
+                            });
+                        }
+                        else {
+                            // If Player does not exists in Team
+                            if(data.Item.player_list.indexOf(player_id) <= -1){
+                                var dbInsert = {
+                                    TableName: "teams",
+                                    Key: { "organization" : org,
+                                    "team_name" : team
+                                },
+                                UpdateExpression: "set #list = list_append(#list, :newItem)",
+                                ExpressionAttributeNames: {
+                                    "#list": "player_list"
+                                },
+                                ExpressionAttributeValues: {
+                                    ":newItem": [player_id]
+                                },
+                                ReturnValues: "UPDATED_NEW"
+                            }
+
+                            docClient.update(dbInsert, function (err, data) {
+                                if (err) {
+                                    console.log("ERROR WHILE CREATING DATA",err);
+                                    reject(err);
+
+                                } else {
+                                    resolve(data)
+                                }
+                            });
+                        }
+                        else{
+                            resolve("PLAYER ALREADY EXISTS IN TEAM");
                         }
 
-                        docClient.update(dbInsert, function (err, data) {
-                            if (err) {
-                                console.log("ERROR WHILE CREATING DATA",err);
-                                reject(err);
-
-                            } else {
-                                resolve(data)
-                            }
-                        });
                     }
-                    else{
-                        resolve("PLAYER ALREADY EXISTS IN TEAM");
-                    }
+                }
+            });
 
+
+        })
+    }
+
+    function base64_encode(file) {
+
+        // read binary data
+        let bitmap = fs.readFileSync(file);
+
+        // convert binary data to base64 encoded string
+        return new Buffer(bitmap).toString('base64');
+    }
+
+    // Clearing the cookies
+    app.get(`/`, (req, res) => {
+        res.send("TesT SERVICE HERE");
+    })
+
+    app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
+
+        // The file content will be in 'upload_file' parameter
+        let buffer = Buffer.from(req.body.upload_file, 'base64');
+
+        // TODO : upload file in s3 ( Which bucket ? )
+
+        // Converting xlsx file data into JSON
+        convertXLSXDataToJSON(buffer, function(items) {
+
+
+            items.map((element) => {
+                return element.organization = "PSU";
+            });
+
+            const new_items_array = _.map(items, o => _.extend({organization: "PSU"}, o));
+            for(var i = 0 ; i < new_items_array.length ; i++){
+                var _temp = new_items_array[i] ;
+                _temp["image_id"] = shortid.generate() ;
+                new_items_array[i] = _temp ;
+            }
+
+            storeSensorData(new_items_array)
+            .then(flag => {
+
+                var players = items.map(function (player) {
+                    return {    player_id : player.player_id.split("$")[0],
+                    team : player.team,
+                    organization : player.organization,
+                }
+            });
+
+            var unique_players = _.uniq(players, 'player_id');
+            const result = [];
+            const map = new Map();
+            var simulation_result_urls = [];
+            for (const item of players) {
+                if(!map.has(item.player_id)){
+                    map.set(item.player_id, true);    // set any value to Map
+                    result.push(item);
                 }
             }
-        });
+            if(result.length == 0){
+                res.send({
+                    message : "success"
+                })
+            }
+            else{
+                // Run simulation here and send data
+                // {
+                //     "player_id" : "STRING",
+                //     "team" : "STRING",
+                //     "organization" : "STRING"
+                // }
+                var counter = 0 ;
+                console.log("UNIQUE PLAYERS ++++++++++++++ ",result);
 
+                for(var i =0 ; i< result.length ; i++){
+                    var temp = result[i];
 
-    })
-}
+                    addPlayerToTeamInDDB(temp.organization, temp.team, temp.player_id)
+                    .then(d => {
+                        // Generate simulation for player
+                        getCumulativeSensorData(temp)
+                        .then(player_data_array => {
 
-function base64_encode(file) {
+                            if(player_data_array.length == 0 ){
 
-    // read binary data
-    let bitmap = fs.readFileSync(file);
-
-    // convert binary data to base64 encoded string
-	return new Buffer(bitmap).toString('base64');
-}
-
-// Clearing the cookies
-app.get(`/`, (req, res) => {
-    res.send("TesT SERVICE HERE");
-})
-
-app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
-
-     // The file content will be in 'upload_file' parameter
-     let buffer = Buffer.from(req.body.upload_file, 'base64');
-
-     // TODO : upload file in s3 ( Which bucket ? )
-
-     // Converting xlsx file data into JSON
-     convertXLSXDataToJSON(buffer, function(items) {
-
-
-         items.map((element) => {
-             return element.organization = "PSU";
-         });
-
-         const new_items_array = _.map(items, o => _.extend({organization: "PSU"}, o));
-
-         storeSensorData(new_items_array)
-         .then(flag => {
-
-             var players = items.map(function (player) {
-                 return {    player_id : player.player_id.split("$")[0],
-                 team : player.team,
-                 organization : player.organization
-             }
-      	});
-
-         var unique_players = _.uniq(players, 'player_id');
-         const result = [];
-         const map = new Map();
-
-         for (const item of players) {
-             if(!map.has(item.player_id)){
-                 map.set(item.player_id, true);    // set any value to Map
-                 result.push(item);
-             }
-         }
-         if(result.length == 0){
-             res.send({
-                 message : "success"
-             })
-         }
-         else{
-             // Run simulation here and send data
-             // {
-             //     "player_id" : "STRING",
-             //     "team" : "STRING",
-             //     "organization" : "STRING"
-             // }
-             var counter = 0 ;
-             console.log("UNIQUE PLAYERS ++++++++++++++ ",result);
-
-             for(var i =0 ; i< result.length ; i++){
-                 var temp = result[i];
-
-                addPlayerToTeamInDDB(temp.organization, temp.team, temp.player_id)
-                .then(d => {
-                	    // Generate simulation for player
-                         getCumulativeSensorData(temp)
-                         .then(player_data_array => {
-                             if(player_data_array.length == 0 ){
-
-                                 console.log('player data array length 0');
-                             }
-                             else{
-
-                                 var counter = 0 ;
-                                console.log('PLAYER DATA ARRAY LENGTH IS ', player_data_array.length)
-
-                                let image_array = []
-                                 for(var i = 0 ; i < player_data_array.length ; i++){
-
-                                     var temp = player_data_array[i];
-                                     var index = i ;
-                                   console.log('TEMP OBJECT IS ', temp)
-                                     generateSimulationForPlayer(temp, index)
-                                     .then(d => {
-                                       console.log('COUNTER IS ', counter +1 );
-                                             counter++;
-                                             image_array.push(d.base64)
-                                             console.log('generateSimulationForPlayer' ,d);
-                                             if(counter == player_data_array.length){
-                                                 res.send({
-                                                     message : "success",
-                                                     images : image_array
-                                                 })
-                                             }
-                                     })
-                                     .catch( err => {
-                                   		console.log('ERROR IN GENERATE SIMULATION IMAGE ', err);
-                                     })
-                             }
-						          }
+                                counter++;
+                                if(counter == result.length){
+                                    res.send({
+                                                message : "success",
+                                                image_url : simulation_result_urls
+                                            })
+                                }
+                            }
+                            else{
+                                generateSimulationForPlayers(player_data_array)
+                                .then(urls => {
+                                        simulation_result_urls.concat(urls)
+                                        counter++;
+                                        if(counter == result.length){
+                                            res.send({
+                                                        message : "success",
+                                                        image_url : simulation_result_urls
+                                                    })
+                                        }
+                                })
+                                .catch(err => {
+                                    counter = result.length ;
+                                    i = result.length ;
+                                    res.send({
+                                        message : "failure",
+                                        error : err
+                                    })
+                                })
+                            }
                         }).
-                     catch(err => {
-                      console.log('ERROR');
-                     })
-                 })
-                 .catch(err => {
-                     counter = result.length ;
-                     res.send({
-                         message : "failure"
-                     })
-                 })
-             }
-         }
-     })
-  })
+                        catch(err => {
+                            console.log('ERROR');
+                            counter = result.length ;
+                            i = result.length ;
+                            res.send({
+                                message : "failure",
+                                error : err
+                            })
+                        })
+                    })
+                    .catch(err => {
+                        counter = result.length ;
+                        i = result.length ;
+                        res.send({
+                            message : "failure",
+                            error : err
+                        })
+                    })
+                }
+            }
+        })
+    })
 })
 
 
@@ -1668,20 +1714,20 @@ app.post(`${apiPrefix}getUserDetailsForIRB`, function(req, res){
     verifyToken(req.body.consent_token)
     .then(decoded_token => {
         console.log(decoded_token);
-            getUserDetails(decoded_token.user_cognito_id)
-            .then(data => {
-                console.log(data);
-                res.send({
-                    message : "success",
-                    data : data
-                })
+        getUserDetails(decoded_token.user_cognito_id)
+        .then(data => {
+            console.log(data);
+            res.send({
+                message : "success",
+                data : data
             })
-            .catch(err => {
-                res.send({
-                    message : "failure",
-                    err : err
-                })
+        })
+        .catch(err => {
+            res.send({
+                message : "failure",
+                err : err
             })
+        })
     })
     .catch(err => {
         res.send({
@@ -1697,21 +1743,21 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
     req.body["subject_signature"] = subject_signature
     let date_details = new Date().toJSON().slice(0,10).split('-').reverse()
     req.body["date"] = date_details[1] + "/" + date_details[0] + "/" + date_details[2]
-            ejs.renderFile(__dirname + '/views/IRBTemplate.ejs', {user_data : req.body }, {}, function (err, str) {
-                // str => Rendered HTML string
-                if(err){
-                        console.log(JSON.stringify(err))
-                        res.send({
-                            message : 'failure',
-                            error : err
-                        })
-                } else {
-                  conversion({ html: str,
-                      paperSize: {
-                                  format: 'A4'
-                              } }, function(err, pdf) {
+    ejs.renderFile(__dirname + '/views/IRBTemplate.ejs', {user_data : req.body }, {}, function (err, str) {
+        // str => Rendered HTML string
+        if(err){
+            console.log(JSON.stringify(err))
+            res.send({
+                message : 'failure',
+                error : err
+            })
+        } else {
+            conversion({ html: str,
+                paperSize: {
+                    format: 'A4'
+                } }, function(err, pdf) {
 
-                   // Gives the path of the actual stream
+                    // Gives the path of the actual stream
                     // console.log(pdf.stream.path);
                     uploadIRBForm(user_cognito_id, pdf.stream.path, `${user_cognito_id}_${Number(Date.now()).toString()}.pdf`)
                     .then(response => {
@@ -1725,7 +1771,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                         console.log(response);
                         return generateJWToken({user_cognito_id : user_cognito_id}, "365d")
 
-                      })
+                    })
                     .then(token => {
                         console.log(token);
                         console.log("age now is ", age);
@@ -1733,61 +1779,61 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
                         if(req.body.isIRBComplete == true) {
 
-                          // Send IRB form completion mail of minor
-
-                          // subject
-                          let subject = `NSFCAREER IRB :\n ${req.body.first_name} ${req.body.last_name}`
-
-                          // link
-                          let link = ` ${req.body.first_name} ${req.body.last_name} signed up. IRB Form of Minor Complete `
-                          console.log( 'Sending mail');
-
-                          // Send mail
-                          return sendMail(config_env.mail_list, subject, link, "IRB_CONSENT.pdf" , pdf.stream.path )
-
-                        } else {
-
-                          if( age > 18 ) {
+                            // Send IRB form completion mail of minor
 
                             // subject
                             let subject = `NSFCAREER IRB :\n ${req.body.first_name} ${req.body.last_name}`
 
                             // link
-                            let link = ` ${req.body.first_name} ${req.body.last_name} signed up `
+                            let link = ` ${req.body.first_name} ${req.body.last_name} signed up. IRB Form of Minor Complete `
                             console.log( 'Sending mail');
 
                             // Send mail
                             return sendMail(config_env.mail_list, subject, link, "IRB_CONSENT.pdf" , pdf.stream.path )
 
-                          } else {
+                        } else {
 
-                            // Send consent form link to guardian
-                            let link = `Please click on the below provided link to confirm minor's account :\n ${config_env.react_website_url}IRBParentConsent?key=${token}`;
-                            ejs.renderFile(__dirname + '/views/ConfirmMinorAccount.ejs', {data : {url : `${config_env.react_website_url}IRBParentConsent?key=${token}`} }, {}, function (err, str) {
-                                if(err){
-                                    res.send({
-                                        message  : "failure",
-                                        error : err
-                                    })
-                                }
-                                else{
+                            if( age > 18 ) {
 
-                                    sendMail(req.body.guardian_mail, "IRB FORM CONSENT APPLICATION", str, "IRB_CONSENT.pdf",  pdf.stream.path)
-                                    .then(response => {
+                                // subject
+                                let subject = `NSFCAREER IRB :\n ${req.body.first_name} ${req.body.last_name}`
+
+                                // link
+                                let link = ` ${req.body.first_name} ${req.body.last_name} signed up `
+                                console.log( 'Sending mail');
+
+                                // Send mail
+                                return sendMail(config_env.mail_list, subject, link, "IRB_CONSENT.pdf" , pdf.stream.path )
+
+                            } else {
+
+                                // Send consent form link to guardian
+                                let link = `Please click on the below provided link to confirm minor's account :\n ${config_env.react_website_url}IRBParentConsent?key=${token}`;
+                                ejs.renderFile(__dirname + '/views/ConfirmMinorAccount.ejs', {data : {url : `${config_env.react_website_url}IRBParentConsent?key=${token}`} }, {}, function (err, str) {
+                                    if(err){
                                         res.send({
-                                            message : "success",
-                                            data : response
+                                            message  : "failure",
+                                            error : err
                                         })
-                                    })
-                                    .catch(err => {
-                                        res.send({
-                                            message : "failure",
-                                            data : err
+                                    }
+                                    else{
+
+                                        sendMail(req.body.guardian_mail, "IRB FORM CONSENT APPLICATION", str, "IRB_CONSENT.pdf",  pdf.stream.path)
+                                        .then(response => {
+                                            res.send({
+                                                message : "success",
+                                                data : response
+                                            })
                                         })
-                                    })
-                                }
-                            })
-                          }
+                                        .catch(err => {
+                                            res.send({
+                                                message : "failure",
+                                                data : err
+                                            })
+                                        })
+                                    }
+                                })
+                            }
 
                         }
 
@@ -1806,192 +1852,192 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                         })
                     })
 
-                  });
-                }
-
-
-
-            });
-
-})
-
-
-app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(req, res){
-
-    // Get URL Image in input
-    // Get User cognito ID in input
-    // 1. Generate 3d Avatar
-    // 1.1 Set update in DB that selfie model is uploaded
-    // 2. Genearte 3d Profile Image from PLY file of 3D Avatar
-    // 2.1 Set Update in DB that 3d Profile Png image generated is uploaded
-    // 3. Generate INP File
-    // 3.1 Set update in DB that inp file is uploaded
-    // 4. Do simulation & generate PNG file of it
-    // 4.1 Set Update in DB that simulation file is generated
-
-    // Adding timestamp as filename to request
-    req.body["file_name"] = Number(Date.now()).toString();
-    generate3DModel(req.body)
-    .then((data)=>{
-
-        upload3DModelZip(req.body,function(err,data){
-
-            if(err){
-                // Create Selfie PNG Image using ProjectedTexture VTK
-                // TODO
-                res.send({
-                    message : "failure",
-                    error : err
-                })
+                });
             }
-            else{
-              executeShellCommands(`xvfb-run ./../MergePolyData/build/ImageCapture ./avatars/${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`)
-                .then((data)=>{
-                    // Upload the selfie image generated on S3
-                    uploadGeneratedSelfieImage(req.body,function(err,data){
-                        if(err){
-                            res.send({
-                                message : "failure",
-                                error : err
-                            })
-                        }
-                        else{
 
 
-                            updateSelfieAndModelStatusInDB(req.body,function(err,data){
 
-                                if(err){
-                                    res.send({
-                                        message : "failure",
-                                        error : err
-                                    })
+        });
 
-                                }
-                                else{
-                                    // Generate INP File
-                                    generateINP(req.body.user_cognito_id)
-                                    .then((d)=>{
-
-                                        // Update Status of INP File generation
-                                        updateINPFileStatusInDB(req.body, function(err,data){
-
-                                            if(err){
-                                                res.send({
-                                                    message : "failure",
-                                                    error : er
-                                                })
-
-                                            }
-                                            else{
-                                                // Create Simulation File
-
-                                                //generateSimulationFile(req.body.user_cognito_id)
-                                                //.then((data)=>{
-
-                                                    // Update status of simulation file
-                                                  //  return updateSimulationFileStatusInDB(req.body)
-
-                                                //}).then((data) => {
-
-                                                  res.send({
-                                                      message : "success"
-                                                  })
-
-                                                //}).catch((err)=>{
-                                                 //   res.send({
-                                                 //       message : "failure",
-                                                 //       error : err
-                                                 //   });
-                                                // })
-                                            }
-                                        })
+    })
 
 
-                                    }).catch((err)=>{
-                                        console.log(err);
-                                        res.send({
-                                            message : "failure",
-                                            error : err
-                                        })
-                                    })
-                                }
-                            })
-                        }
-                    })
-                })
-                .catch((err)=>{
+    app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(req, res){
+
+        // Get URL Image in input
+        // Get User cognito ID in input
+        // 1. Generate 3d Avatar
+        // 1.1 Set update in DB that selfie model is uploaded
+        // 2. Genearte 3d Profile Image from PLY file of 3D Avatar
+        // 2.1 Set Update in DB that 3d Profile Png image generated is uploaded
+        // 3. Generate INP File
+        // 3.1 Set update in DB that inp file is uploaded
+        // 4. Do simulation & generate PNG file of it
+        // 4.1 Set Update in DB that simulation file is generated
+
+        // Adding timestamp as filename to request
+        req.body["file_name"] = Number(Date.now()).toString();
+        generate3DModel(req.body)
+        .then((data)=>{
+
+            upload3DModelZip(req.body,function(err,data){
+
+                if(err){
+                    // Create Selfie PNG Image using ProjectedTexture VTK
+                    // TODO
                     res.send({
                         message : "failure",
                         error : err
                     })
+                }
+                else{
+                    executeShellCommands(`xvfb-run ./../MergePolyData/build/ImageCapture ./avatars/${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`)
+                    .then((data)=>{
+                        // Upload the selfie image generated on S3
+                        uploadGeneratedSelfieImage(req.body,function(err,data){
+                            if(err){
+                                res.send({
+                                    message : "failure",
+                                    error : err
+                                })
+                            }
+                            else{
 
-                })
 
-            }
+                                updateSelfieAndModelStatusInDB(req.body,function(err,data){
 
+                                    if(err){
+                                        res.send({
+                                            message : "failure",
+                                            error : err
+                                        })
+
+                                    }
+                                    else{
+                                        // Generate INP File
+                                        generateINP(req.body.user_cognito_id)
+                                        .then((d)=>{
+
+                                            // Update Status of INP File generation
+                                            updateINPFileStatusInDB(req.body, function(err,data){
+
+                                                if(err){
+                                                    res.send({
+                                                        message : "failure",
+                                                        error : er
+                                                    })
+
+                                                }
+                                                else{
+                                                    // Create Simulation File
+
+                                                    //generateSimulationFile(req.body.user_cognito_id)
+                                                    //.then((data)=>{
+
+                                                    // Update status of simulation file
+                                                    //  return updateSimulationFileStatusInDB(req.body)
+
+                                                    //}).then((data) => {
+
+                                                    res.send({
+                                                        message : "success"
+                                                    })
+
+                                                    //}).catch((err)=>{
+                                                    //   res.send({
+                                                    //       message : "failure",
+                                                    //       error : err
+                                                    //   });
+                                                    // })
+                                                }
+                                            })
+
+
+                                        }).catch((err)=>{
+                                            console.log(err);
+                                            res.send({
+                                                message : "failure",
+                                                error : err
+                                            })
+                                        })
+                                    }
+                                })
+                            }
+                        })
+                    })
+                    .catch((err)=>{
+                        res.send({
+                            message : "failure",
+                            error : err
+                        })
+
+                    })
+
+                }
+
+            })
+        })
+        .catch((err)=>{
+            res.send({
+                message : "failure",
+                error : err
+            })
+        })
+
+    })
+
+    app.post(`${apiPrefix}generateINF`, function(req, res){
+        console.log(req.body);
+        generateINP(req.body.user_id).then((d)=>{
+            res.send({
+                message : "success",
+                data : d
+            })
+        }).catch((err)=>{
+            console.log(err);
+            res.send({
+                message : "failure",
+                error : err
+            })
         })
     })
-    .catch((err)=>{
-        res.send({
-            message : "failure",
-            error : err
+    app.post(`${apiPrefix}generateSimulation`, function(req, res){
+        console.log(req.body);
+        generateSimulationFile(req.body.user_id).then((d)=>{
+            res.send({
+                message : "success",
+                data : d
+            })
+        }).catch((err)=>{
+            console.log(err);
+            res.send({
+                message : "failure",
+                error : err
+            })
         })
     })
 
-})
-
-app.post(`${apiPrefix}generateINF`, function(req, res){
-    console.log(req.body);
-    generateINP(req.body.user_id).then((d)=>{
-        res.send({
-            message : "success",
-            data : d
-        })
-    }).catch((err)=>{
-        console.log(err);
-        res.send({
-            message : "failure",
-            error : err
-        })
-    })
-})
-app.post(`${apiPrefix}generateSimulation`, function(req, res){
-    console.log(req.body);
-    generateSimulationFile(req.body.user_id).then((d)=>{
-        res.send({
-            message : "success",
-            data : d
-        })
-    }).catch((err)=>{
-        console.log(err);
-        res.send({
-            message : "failure",
-            error : err
+    app.post(`${apiPrefix}generateSimulation`, function(req, res){
+        console.log(req.body);
+        generateSimulationFile(req.body.user_id).then((d)=>{
+            res.send({
+                message : "success",
+                data : d
+            })
+        }).catch((err)=>{
+            console.log(err);
+            res.send({
+                message : "failure",
+                error : err
+            })
         })
     })
-})
 
-app.post(`${apiPrefix}generateSimulation`, function(req, res){
-    console.log(req.body);
-    generateSimulationFile(req.body.user_id).then((d)=>{
-        res.send({
-            message : "success",
-            data : d
-        })
-    }).catch((err)=>{
-        console.log(err);
-        res.send({
-            message : "failure",
-            error : err
-        })
-    })
-})
+    app.post(`${apiPrefix}getSimulationStatusCount`, function(req, res){
+        console.log(req.body);
 
-app.post(`${apiPrefix}getSimulationStatusCount`, function(req, res){
-    console.log(req.body);
-
-    getTeamData(req.body)
-    .then(simulation_records => {
+        getTeamData(req.body)
+        .then(simulation_records => {
 
 
 
@@ -2004,304 +2050,515 @@ app.post(`${apiPrefix}getSimulationStatusCount`, function(req, res){
                 }
             })
 
-    })
-    .catch(err => {
-        res.send({
-            message : "failure",
-            error : err,
-            data : {
-                completed : 0,
-                failed : 0,
-                pending : 0
-            }
         })
-    })
-})
-
-app.post(`${apiPrefix}getCumulativeAccelerationData`, function(req, res){
-    console.log(req.body);
-    getCumulativeAccelerationData(req.body)
-    .then(data => {
-        let linear_accelerations = data.map(function (impact_data) {
-            return impact_data.linear_acceleration_pla
-        });
-
-        let angular_accelerations = data.map(function (impact_data) {
-            return impact_data.angular_acceleration_paa
-        });
-        var sorted_acceleration_data = customInsertionSortForGraphData(angular_accelerations, linear_accelerations)
-        res.send({
-            message : "success",
-            data : {
-                linear_accelerations : sorted_acceleration_data.array_X,
-                angular_accelerations : sorted_acceleration_data.array_Y
-            }
-        })
-    })
-    .catch(err => {
-        res.send({
-            message : "failure",
-            data : {
-                linear_accelerations : [],
-                angular_accelerations : []
-            },
-            error : err
-        })
-    })
-})
-
-
-
-app.post(`${apiPrefix}getPlayersDetails`, function(req, res){
-    console.log("Get Player details called",req.body);
-    getPlayersListFromTeamsDB(req.body)
-    .then(data => {
-        console.log(data.player_list);
-        if(data.player_list.length == 0 ){
-            res.send({
-                message : "success",
-                data : []
-            })
-        }
-        else{
-            var counter = 0 ;
-            var p_data = [] ;
-            data.player_list.forEach(function(player,index){
-                let p = player ;
-                let i = index ;
-                getTeamDataWithPlayerRecords({player_id : p, team : req.body.team_name})
-                .then(player_data => {
-                    counter++;
-                    p_data.push({player_name : p ,
-                    simulation_data : player_data});
-
-                    if(counter ==  data.player_list.length){
-                        res.send({
-                            message : "success",
-                            data : p_data
-                        })
-                    }
-                })
-                .catch(err => {
-                    console.log(err);
-                    counter++;
-                    if(counter ==  data.player_list.length){
-                        res.send({
-                            message : "failure",
-                            data : p_data
-                        })
-                    }
-                })
-            })
-        }
-    })
-    .catch(err => {
-        console.log(err);
-        res.send({
-            message : "failure",
-            error : err
-        })
-    });
-})
-
-app.post(`${apiPrefix}getCumulativeAccelerationTimeData`, function(req, res){
-
-    getCumulativeAccelerationData(req.body)
-    .then(data => {
-        let linear_accelerations = data.map(function (impact_data) {
-            return impact_data.linear_acceleration_pla
-        });
-
-        // X- Axis Linear Acceleration
-        let max_linear_acceleration = Math.max(...linear_accelerations);
-        // Y Axis timestamp
-        let time = [0,20,40];
-
-        res.send({
-            message : "success",
-            data : {
-                linear_accelerations : [0,max_linear_acceleration,0],
-                time : time
-            }
-        })
-    })
-    .catch(err => {
-        res.send({
-            message : "failure",
-            data : {
-                linear_accelerations : [],
-                time : []
-            },
-            error : err
-        })
-    })
-})
-
-app.post(`${apiPrefix}getAllCumulativeAccelerationTimeRecords`, function(req, res){
-
-    getCumulativeAccelerationData(req.body)
-    .then(data => {
-        var acceleration_data_list = [];
-        data.forEach(function(acc_data){
-
-            // X- Axis Linear Acceleration
-            let max_acceleration = [ 0, acc_data.linear_acceleration_pla, 0 ];
-            // Y Axis timestamp
-            let time = [0,20,40];
-            acceleration_data_list.push({
-                max_linear_acceleration : max_acceleration,
-                time : time,
-                timestamp : acc_data.timestamp,
-                record_time : acc_data.time
-            })
-        })
-
-
-        res.send({
-            message : "success",
-            data : acceleration_data_list
-        })
-    })
-    .catch(err => {
-        res.send({
-            message : "failure",
-            data : {
-                linear_accelerations : [],
-                time : []
-            },
-            error : err
-        })
-    })
-})
-
-
-app.post(`${apiPrefix}getCumulativeEventPressureData`, function(req, res){
-
-    res.send(getCumulativeEventPressureData());
-})
-
-app.post(`${apiPrefix}getCumulativeEventLoadData`, function(req, res){
-
-    res.send(getCumulativeEventLoadData());
-})
-
-app.post(`${apiPrefix}getHeadAccelerationEvents`, function(req, res){
-    console.log(req.body);
-    getHeadAccelerationEvents(req.body)
-    .then(data => {
-        res.send({
-            message : "success",
-            data : data
-        })
-    })
-    .catch(err => {
-        console.log("========================>,ERRROR ,", err);
-        res.send({
-            message : "failure",
-            error : err
-        });
-    })
-
-
-})
-
-app.post(`${apiPrefix}getTeamAdminData`, function(req, res){
-
-    res.send(getTeamAdminData());
-
-})
-
-app.post(`${apiPrefix}getImpactSummary`, function(req, res){
-
-    res.send(getImpactSummary());
-
-})
-
-app.post(`${apiPrefix}getImpactHistory`, function(req, res){
-
-    res.send(getImpactHistory());
-
-})
-
-function getPlayersListFromTeamsDB(obj){
-    return new Promise((resolve, reject)=>{
-        var db_table = {
-        TableName: 'teams',
-        Key: {
-            "organization": obj.organization,
-            "team_name" : obj.team_name
-        }
-    };
-    docClient.get(db_table, function (err, data) {
-        if (err) {
-
-            reject(err)
-
-        } else {
-
-            resolve(data.Item)
-        }
-    });
-    })
-}
-
-app.post(`${apiPrefix}getPlayersData`, function(req, res){
-
-    res.send(getPlayersData());
-
-})
-
-app.post(`${apiPrefix}getOrganizationAdminData`, function(req, res){
-
-    res.send(getOrganizationAdminData());
-
-})
-
-app.post(`${apiPrefix}getAllRosters`, function(req, res){
-
-    res.send(getAllRosters());
-
-})
-
-
-app.post(`${apiPrefix}getUpdatesAndNotifications`, (req, res) => {
-    var subject = `${req.body.first_name} ${req.body.last_name} subscribed for updates`;
-    ejs.renderFile(__dirname + '/views/UpdateTemplate.ejs', {data : req.body }, {}, function (err, str) {
-        if(err){
+        .catch(err => {
             res.send({
                 message : "failure",
+                error : err,
+                data : {
+                    completed : 0,
+                    failed : 0,
+                    pending : 0
+                }
+            })
+        })
+    })
+
+    app.post(`${apiPrefix}getCumulativeAccelerationData`, function(req, res){
+        console.log(req.body);
+        getCumulativeAccelerationData(req.body)
+        .then(data => {
+            let linear_accelerations = data.map(function (impact_data) {
+                return impact_data.linear_acceleration_pla
+            });
+
+            let angular_accelerations = data.map(function (impact_data) {
+                return impact_data.angular_acceleration_paa
+            });
+            var sorted_acceleration_data = customInsertionSortForGraphData(angular_accelerations, linear_accelerations)
+            res.send({
+                message : "success",
+                data : {
+                    linear_accelerations : sorted_acceleration_data.array_X,
+                    angular_accelerations : sorted_acceleration_data.array_Y
+                }
+            })
+        })
+        .catch(err => {
+            res.send({
+                message : "failure",
+                data : {
+                    linear_accelerations : [],
+                    angular_accelerations : []
+                },
                 error : err
             })
+        })
+    })
+
+
+
+    app.post(`${apiPrefix}getPlayersDetails`, function(req, res){
+        console.log("Get Player details called",req.body);
+        getPlayersListFromTeamsDB(req.body)
+        .then(data => {
+            console.log(data.player_list);
+            if(data.player_list.length == 0 ){
+                res.send({
+                    message : "success",
+                    data : []
+                })
+            }
+            else{
+                var counter = 0 ;
+                var p_data = [] ;
+                data.player_list.forEach(function(player,index){
+                    let p = player ;
+                    let i = index ;
+                    getTeamDataWithPlayerRecords({player_id : p, team : req.body.team_name})
+                    .then(player_data => {
+                        counter++;
+                        p_data.push({player_name : p ,
+                            simulation_data : player_data});
+
+                            if(counter ==  data.player_list.length){
+                                res.send({
+                                    message : "success",
+                                    data : p_data
+                                })
+                            }
+                        })
+                        .catch(err => {
+                            console.log(err);
+                            counter++;
+                            if(counter ==  data.player_list.length){
+                                res.send({
+                                    message : "failure",
+                                    data : p_data
+                                })
+                            }
+                        })
+                    })
+                }
+            })
+            .catch(err => {
+                console.log(err);
+                res.send({
+                    message : "failure",
+                    error : err
+                })
+            });
+        })
+
+        app.post(`${apiPrefix}getCumulativeAccelerationTimeData`, function(req, res){
+
+            getCumulativeAccelerationData(req.body)
+            .then(data => {
+                let linear_accelerations = data.map(function (impact_data) {
+                    return impact_data.linear_acceleration_pla
+                });
+
+                // X- Axis Linear Acceleration
+                let max_linear_acceleration = Math.max(...linear_accelerations);
+                // Y Axis timestamp
+                let time = [0,20,40];
+
+                res.send({
+                    message : "success",
+                    data : {
+                        linear_accelerations : [0,max_linear_acceleration,0],
+                        time : time
+                    }
+                })
+            })
+            .catch(err => {
+                res.send({
+                    message : "failure",
+                    data : {
+                        linear_accelerations : [],
+                        time : []
+                    },
+                    error : err
+                })
+            })
+        })
+
+        app.post(`${apiPrefix}getAllCumulativeAccelerationTimeRecords`, function(req, res){
+
+            getCumulativeAccelerationData(req.body)
+            .then(data => {
+                var acceleration_data_list = [];
+                data.forEach(function(acc_data){
+
+                    // X- Axis Linear Acceleration
+                    let max_acceleration = [ 0, acc_data.linear_acceleration_pla, 0 ];
+                    // Y Axis timestamp
+                    let time = [0,20,40];
+                    acceleration_data_list.push({
+                        max_linear_acceleration : max_acceleration,
+                        time : time,
+                        timestamp : acc_data.timestamp,
+                        record_time : acc_data.time
+                    })
+                })
+
+
+                res.send({
+                    message : "success",
+                    data : acceleration_data_list
+                })
+            })
+            .catch(err => {
+                res.send({
+                    message : "failure",
+                    data : {
+                        linear_accelerations : [],
+                        time : []
+                    },
+                    error : err
+                })
+            })
+        })
+
+
+        app.post(`${apiPrefix}getCumulativeEventPressureData`, function(req, res){
+
+            res.send(getCumulativeEventPressureData());
+        })
+
+        app.post(`${apiPrefix}getCumulativeEventLoadData`, function(req, res){
+
+            res.send(getCumulativeEventLoadData());
+        })
+
+        app.post(`${apiPrefix}getHeadAccelerationEvents`, function(req, res){
+            console.log(req.body);
+            getHeadAccelerationEvents(req.body)
+            .then(data => {
+                res.send({
+                    message : "success",
+                    data : data
+                })
+            })
+            .catch(err => {
+                console.log("========================>,ERRROR ,", err);
+                res.send({
+                    message : "failure",
+                    error : err
+                });
+            })
+
+
+        })
+
+        app.post(`${apiPrefix}getTeamAdminData`, function(req, res){
+
+            res.send(getTeamAdminData());
+
+        })
+
+        app.post(`${apiPrefix}getImpactSummary`, function(req, res){
+
+            res.send(getImpactSummary());
+
+        })
+
+        app.post(`${apiPrefix}getImpactHistory`, function(req, res){
+
+            res.send(getImpactHistory());
+
+        })
+
+        function getPlayersListFromTeamsDB(obj){
+            return new Promise((resolve, reject)=>{
+                var db_table = {
+                    TableName: 'teams',
+                    Key: {
+                        "organization": obj.organization,
+                        "team_name" : obj.team_name
+                    }
+                };
+                docClient.get(db_table, function (err, data) {
+                    if (err) {
+
+                        reject(err)
+
+                    } else {
+
+                        resolve(data.Item)
+                    }
+                });
+            })
         }
-        else{
-            sendMail(config_env.mail_list, subject, str)
-            .then(response => {
-                //  Send the mail to User who registered for updates...
-                ejs.renderFile(__dirname + '/views/AdminRespondUpdateTemplate.ejs', {data : req.body }, {}, function (err, str) {
-                    if(err){
+
+        app.post(`${apiPrefix}getPlayersData`, function(req, res){
+
+            res.send(getPlayersData());
+
+        })
+
+        app.post(`${apiPrefix}getOrganizationAdminData`, function(req, res){
+
+            res.send(getOrganizationAdminData());
+
+        })
+
+        app.post(`${apiPrefix}getAllRosters`, function(req, res){
+
+            res.send(getAllRosters());
+
+        })
+
+
+        app.post(`${apiPrefix}getUpdatesAndNotifications`, (req, res) => {
+            var subject = `${req.body.first_name} ${req.body.last_name} subscribed for updates`;
+            ejs.renderFile(__dirname + '/views/UpdateTemplate.ejs', {data : req.body }, {}, function (err, str) {
+                if(err){
+                    res.send({
+                        message : "failure",
+                        error : err
+                    })
+                }
+                else{
+                    sendMail(config_env.mail_list, subject, str)
+                    .then(response => {
+                        //  Send the mail to User who registered for updates...
+                        ejs.renderFile(__dirname + '/views/AdminRespondUpdateTemplate.ejs', {data : req.body }, {}, function (err, str) {
+                            if(err){
+                                res.send({
+                                    message : "failure",
+                                    error : err
+                                })
+                            }
+                            else{
+                                subject = "NSFCAREER.IO | Thank you for subscribing !";
+                                sendMail(req.body.email, subject, str)
+                                .then(response => {
+                                    res.send({
+                                        message : "success",
+                                        data : response
+                                    })
+                                })
+                                .catch(err => {
+                                    res.send({
+                                        message : "failure",
+                                        error : err
+                                    })
+                                })
+                            }
+                        })
+
+                    })
+                    .catch(err => {
                         res.send({
                             message : "failure",
                             error : err
                         })
-                    }
-                    else{
-                        subject = "NSFCAREER.IO | Thank you for subscribing !";
-                        sendMail(req.body.email, subject, str)
-                        .then(response => {
-                            res.send({
-                                message : "success",
-                                data : response
-                            })
-                        })
-                        .catch(err => {
-                            res.send({
-                                message : "failure",
-                                error : err
-                            })
-                        })
-                    }
-                })
+                    })
+                }
+            })
+        })
 
+        function generateSimulationForPlayers(player_data_array){
+            return new Promise((resolve, reject) => {
+                var counter = 0 ;
+                var simulation_result_urls = [];
+
+                for(var j = 0 ; j < player_data_array.length ; j++){
+
+                    var _temp_player = player_data_array[j];
+                    var index = j ;
+                    console.log('TEMP OBJECT IS ', _temp_player)
+                    simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${_temp_player.image_id}`)
+                    updateSimulationImageToDDB(_temp_player.image_id, "PROCESSING", "pending")
+                    .then(value => {
+                        generateSimulationForPlayer(_temp_player, index, _temp_player.image_id)
+
+                            counter++;
+
+                        if(counter == player_data_array.length){
+                            resolve(simulation_result_urls)
+                        }
+                        // .then(d => {
+                        //     console.log('COUNTER IS ', counter +1 );
+                        //     inner_counter++;
+                        //     image_array.push(d.base64)
+                        //     console.log('generateSimulationForPlayer' ,d);
+                        //     if(counter == player_data_array.length){
+                        //         res.send({
+                        //             message : "success",
+                        //             images : image_array
+                        //         })
+                        //     }
+                        // })
+                        // .catch( err => {
+                        //     console.log('ERROR IN GENERATE SIMULATION IMAGE ', err);
+                        // })
+                    })
+                    .catch(err => {
+                        counter = result.length ;
+                        j = player_data_array.length ;
+                        reject(err)
+                    })
+                }
+            })
+        }
+
+        function generateSimulationForPlayer(obj, index, image_id = NULL){
+            return new Promise((resolve, reject)=>{
+                var playerData = {
+                    "player": {
+                        "name": "",
+                        "position": ""
+                    },
+                    "simulation": {
+                        "mesh": "brain.inp",
+                        "linear-acceleration": [0.0, 0.0, 0.0],
+                        "angular-acceleration": 0.0,
+                        "time-peak-acceleration": 1.0e-5,
+                        "maximum-time": 2.0e-5,
+                        "impact-point": ""
+                    }
+                }
+
+                // Max Linear Accelearation Impact data
+
+                playerData["player"]["name"] = obj.player_id ;
+                playerData["player"]["position"] = obj.position.toLowerCase() ;
+                playerData["simulation"]["linear-acceleration"][0] = obj.linear_acceleration_pla ;
+                playerData["simulation"]["angular-acceleration"] = obj.angular_acceleration_paa ;
+                playerData["simulation"]["impact-point"] = obj.impact_location_on_head.toLowerCase() ;
+                console.log("PLAYER DATA PARSED IS ", playerData);
+                let p_id = obj.player_id.split("$")[0].split(" ").join("-");
+                let file_path = `/tmp/${p_id}/`;
+                let timestamp = Number(Date.now()).toString();
+                let file_name = `${timestamp}.json`;
+                executeShellCommands(`mkdir -p ${file_path}`)
+                .then(d => {
+
+                    // STORE THE ABOVE DATA IN TMP/PLAYERID/TIMESTAMP.json
+                    return writeJsonToFile(file_path + file_name, playerData)
+
+                })
+                .then(d =>{
+
+                    // EXECUTE THE MPIRUN COMMAND
+                    let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${file_path}${file_name}`
+                    console.log(cmd);
+                    return executeShellCommands(cmd)
+
+                })
+                .then(d =>{
+
+                    // EXECUTE MERGEPOLYDATA PNG
+                    let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${ p_id + obj.date.split("/").join("-") + "_" + index }.png`
+                    return executeShellCommands(cmd)
+
+                })
+                .then(d =>{
+                    // Upload the file on S3 bucket
+                    let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
+                    return uploadPlayerSimulationFile(obj.player_id.split("$")[0].split(" ").join("-"), simulationFilePath, `${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`, obj.date.split("/").join("-"), image_id)
+
+                })
+                .then(d =>{
+                    console.log(d);
+                    let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
+
+                    resolve({
+                        message : "success",
+                        data  : d,
+                        base64 : base64_encode(simulationFilePath)
+                    })
+                })
+                .catch(err => {
+                    console.log(err);
+                    reject({
+                        message : "failure",
+                        error : err
+                    });
+                })
+            })
+
+        }
+
+        app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
+            // GET JSON data
+            // PARSE THE DATA IN REQUIRED FORMAT
+            // ======================== EXAMPLE FORMAT IS GIVEN =======================
+            // {
+            // "player": {
+            // 	"name": "harry",
+            // 	"position": "OL"
+            // },
+            // "simulation": {
+            // 	"mesh": "brain.inp",
+            // 	"linear-acceleration": [80.0, 0.0, 0.0],
+            // 	"angular-acceleration": 8000.0,
+            // 	"time-peak-acceleration": 1.0e-5,
+            // 	"maximum-time": 2.0e-5,
+            // 	"impact-point": "front-low"
+            // }
+            // }
+            //=========================================================================
+            // STORE IT IN TMP filter
+            // CALL THE MPIRUN AND EXECUTE
+            getCumulativeSensorData(req.body)
+            .then(player_data_array => {
+                if(player_data_array.length == 0 ){
+                    res.send({message : "success"})
+                }
+                else{
+                    var counter = 0 ;
+                    try {
+                        for(var i = 0 ; i < player_data_array.length ; i++){
+                            var temp = player_data_array[i];
+                            var index = i ;
+                            generateSimulationForPlayer(temp, index)
+                            .then(d => {
+                                counter++;
+                                if(counter == player_data_array.length){
+                                    res.send({
+                                        message : "success"
+                                    })
+                                }
+                            })
+                            .catch(err => {
+                                res.send({
+                                    message : "failure",
+                                    error : err
+                                })
+                            })
+                        }
+                    } catch (e) {
+                        res.send({
+                            message : "failure",
+                            error : e
+                        })
+                    }
+
+                }
+            })
+            .catch(err => {
+                res.send({
+                    message : "failure",
+                    error  : err
+                })
+            })
+
+
+        })
+
+        app.post(`${apiPrefix}addTeam`, function(req, res){
+            addTeam(req.body)
+            .then(data => {
+                // Adding user to organization
+                return new addTeamToOrganizationList(req.body.organization, req.body.team_name)
+            })
+            .then(d => {
+                res.send({
+                    message : "success"
+                })
             })
             .catch(err => {
                 res.send({
@@ -2309,250 +2566,84 @@ app.post(`${apiPrefix}getUpdatesAndNotifications`, (req, res) => {
                     error : err
                 })
             })
-        }
-    })
-})
-
-function generateSimulationForPlayer(obj, index){
-    return new Promise((resolve, reject)=>{
-        var playerData = {
-            "player": {
-                "name": "",
-                "position": ""
-            },
-            "simulation": {
-                "mesh": "brain.inp",
-                "linear-acceleration": [0.0, 0.0, 0.0],
-                "angular-acceleration": 0.0,
-                "time-peak-acceleration": 1.0e-5,
-                "maximum-time": 2.0e-5,
-                "impact-point": ""
-            }
-        }
-
-        // Max Linear Accelearation Impact data
-
-        playerData["player"]["name"] = obj.player_id ;
-        playerData["player"]["position"] = obj.position.toLowerCase() ;
-        playerData["simulation"]["linear-acceleration"][0] = obj.linear_acceleration_pla ;
-        playerData["simulation"]["angular-acceleration"] = obj.angular_acceleration_paa ;
-        playerData["simulation"]["impact-point"] = obj.impact_location_on_head.toLowerCase() ;
-        console.log("PLAYER DATA PARSED IS ", playerData);
-        let p_id = obj.player_id.split("$")[0].split(" ").join("-");
-        let file_path = `/tmp/${p_id}/`;
-        let timestamp = Number(Date.now()).toString();
-        let file_name = `${timestamp}.json`;
-        executeShellCommands(`mkdir -p ${file_path}`)
-        .then(d => {
-
-            // STORE THE ABOVE DATA IN TMP/PLAYERID/TIMESTAMP.json
-            return writeJsonToFile(file_path + file_name, playerData)
 
         })
-        .then(d =>{
 
-            // EXECUTE THE MPIRUN COMMAND
-            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${file_path}${file_name}`
-          console.log(cmd);
-            return executeShellCommands(cmd)
+        app.post(`${apiPrefix}fetchAllTeamsInOrganization`, function(req, res){
+            console.log(req.body);
+            fetchAllTeamsInOrganization(req.body.organization)
+            .then(list => {
+                var teamList = list.filter(function(team) {
 
-        })
-        .then(d =>{
-
-            // EXECUTE MERGEPOLYDATA PNG
-            let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${ p_id + obj.date.split("/").join("-") + "_" + index }.png`
-            return executeShellCommands(cmd)
-
-        })
-        .then(d =>{
-            // Upload the file on S3 bucket
-            let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
-            return uploadPlayerSimulationFile(obj.player_id.split("$")[0].split(" ").join("-"), simulationFilePath, `${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`, obj.date.split("/").join("-"))
-
-        })
-        .then(d =>{
-            console.log(d);
-          let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
-
-          resolve({
-            message : "success",
-            data  : d,
-            base64 : base64_encode(simulationFilePath)
-          })
-        })
-        .catch(err => {
-            console.log(err);
-            reject({
-                message : "failure",
-                error : err
-            });
-        })
-    })
-
-}
-
-app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
-    // GET JSON data
-    // PARSE THE DATA IN REQUIRED FORMAT
-    // ======================== EXAMPLE FORMAT IS GIVEN =======================
-    // {
-    // "player": {
-    // 	"name": "harry",
-    // 	"position": "OL"
-    // },
-    // "simulation": {
-    // 	"mesh": "brain.inp",
-    // 	"linear-acceleration": [80.0, 0.0, 0.0],
-    // 	"angular-acceleration": 8000.0,
-    // 	"time-peak-acceleration": 1.0e-5,
-    // 	"maximum-time": 2.0e-5,
-    // 	"impact-point": "front-low"
-    // }
-    // }
-    //=========================================================================
-    // STORE IT IN TMP filter
-    // CALL THE MPIRUN AND EXECUTE
-    getCumulativeSensorData(req.body)
-    .then(player_data_array => {
-        if(player_data_array.length == 0 ){
-            res.send({message : "success"})
-        }
-        else{
-            var counter = 0 ;
-            try {
-                for(var i = 0 ; i < player_data_array.length ; i++){
-                  var temp = player_data_array[i];
-                  var index = i ;
-                    generateSimulationForPlayer(temp, index)
-                    .then(d => {
-                            counter++;
-                            if(counter == player_data_array.length){
-                                res.send({
-                                    message : "success"
-                                })
-                            }
-                    })
-                    .catch(err => {
-                            res.send({
-                                message : "failure",
-                                error : err
-                            })
+                    return (!("team_list" in team));
+                });
+                let counter = 0 ;
+                if( teamList.length == 0 ){
+                    res.send({
+                        message : "success",
+                        data : []
                     })
                 }
-            } catch (e) {
+                else{
+                    teamList.forEach(function(team,index){
+                        let data = team ;
+                        let i = index ;
+                        getTeamData({team : data.team_name})
+                        .then(simulation_records => {
+                            counter++;
+                            team["simulation_count"] = Number(simulation_records.length).toString();
+
+                            if(counter == teamList.length){
+                                res.send({
+                                    message : "success",
+                                    data : teamList
+                                })
+                            }
+                        })
+                        .catch(err => {
+                            counter++
+                            if(counter == teamList.length){
+                                res.send({
+                                    message : "failure",
+                                    error : err
+                                })
+                            }
+                        })
+                    })
+                }
+            })
+            .catch(err => {
+                console.log(err);
                 res.send({
                     message : "failure",
-                    error : e
+                    error : err
                 })
-            }
+            })
 
-        }
-    })
-    .catch(err => {
-        res.send({
-            message : "failure",
-            error  : err
         })
-    })
 
-
-})
-
-app.post(`${apiPrefix}addTeam`, function(req, res){
-    addTeam(req.body)
-    .then(data => {
-        // Adding user to organization
-        return new addTeamToOrganizationList(req.body.organization, req.body.team_name)
-    })
-    .then(d => {
-        res.send({
-            message : "success"
+        app.post(`${apiPrefix}deleteTeam`, function(req, res){
+            deleteTeam(req.body)
+            .then(d => {
+                return new deleteTeamFromOrganizationList(req.body.organization, req.body.team_name)
+            })
+            .then(d => {
+                res.send({
+                    message : "success"
+                })
+            })
+            .catch(err => {
+                res.send({
+                    message : "failure",
+                    error : err
+                })
+            })
         })
-    })
-    .catch(err => {
-        res.send({
-            message : "failure",
-            error : err
-        })
-    })
 
-})
 
-app.post(`${apiPrefix}fetchAllTeamsInOrganization`, function(req, res){
-    console.log(req.body);
-    fetchAllTeamsInOrganization(req.body.organization)
-    .then(list => {
-        var teamList = list.filter(function(team) {
 
-            return (!("team_list" in team));
+        // Configuring port for APP
+        const port = 3000;
+        const server = app.listen(port, function () {
+            console.log('Magic happens on ' + port);
         });
-        let counter = 0 ;
-        if( teamList.length == 0 ){
-            res.send({
-                message : "success",
-                data : []
-            })
-        }
-        else{
-            teamList.forEach(function(team,index){
-                let data = team ;
-                let i = index ;
-                getTeamData({team : data.team_name})
-                .then(simulation_records => {
-                    counter++;
-                    team["simulation_count"] = Number(simulation_records.length).toString();
-
-                    if(counter == teamList.length){
-                        res.send({
-                            message : "success",
-                            data : teamList
-                        })
-                    }
-                })
-                .catch(err => {
-                    counter++
-                    if(counter == teamList.length){
-                        res.send({
-                            message : "failure",
-                            error : err
-                        })
-                    }
-                })
-            })
-        }
-    })
-    .catch(err => {
-        console.log(err);
-        res.send({
-            message : "failure",
-            error : err
-        })
-    })
-
-})
-
-app.post(`${apiPrefix}deleteTeam`, function(req, res){
-    deleteTeam(req.body)
-    .then(d => {
-        return new deleteTeamFromOrganizationList(req.body.organization, req.body.team_name)
-    })
-    .then(d => {
-        res.send({
-            message : "success"
-        })
-    })
-    .catch(err => {
-        res.send({
-            message : "failure",
-            error : err
-        })
-    })
-})
-
-
-
-// Configuring port for APP
-const port = 3000;
-const server = app.listen(port, function () {
-    console.log('Magic happens on ' + port);
-});
