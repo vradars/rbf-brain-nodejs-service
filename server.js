@@ -74,8 +74,8 @@ var config = {
 const subject_signature  = fs.readFileSync("data/base64")
 
 var config_env = config ;
-//var config = require('./config/configuration_keys.json');
-//var config_env = config;
+var config = require('./config/configuration_keys.json');
+var config_env = config;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -1302,7 +1302,7 @@ function writeJsonToFile(path, jsonObject){
         });
     })
 }
-function uploadPlayerSimulationFile(user_id, file_path, file_name, date, image_id=NULL){
+function uploadPlayerSimulationFile(user_id, file_path, file_name, date, image_id=null){
 
     return new Promise((resolve, reject)=>{
         var uploadParams = {
@@ -1315,10 +1315,11 @@ function uploadPlayerSimulationFile(user_id, file_path, file_name, date, image_i
 
         fs.readFile(file_path, function (err, headBuffer) {
             if (err) {
+                console.log("ERROR in Reading",err);
                 reject(err);
             }
             else {
-                updateSimulationImageToDDB(image_id, headBuffer.toString("base64"))
+                updateSimulationImageToDDB(image_id, config.usersbucket, user_id + `/simulation/${date}/` + file_name)
                 .then(value => {
 
                     params.Key = user_id + `/simulation/${date}/` + file_name ;
@@ -1326,6 +1327,7 @@ function uploadPlayerSimulationFile(user_id, file_path, file_name, date, image_i
                     // Call S3 Upload
                     s3.upload(params, (err, data) => {
                         if (err) {
+                            console.log("ERROR IN S3",err);
                             reject(err);
                         }
                         else {
@@ -1335,6 +1337,7 @@ function uploadPlayerSimulationFile(user_id, file_path, file_name, date, image_i
                     });
                 })
                 .catch(err => {
+                    console.log("Error in reading",err);
                     reject(data);
                 })
             }
@@ -1473,17 +1476,18 @@ function storeSensorData(sensor_data_array){
     })
 }
 
-function updateSimulationImageToDDB(image_id, base64_encoded_simulation_image, status = "completed"){
+function updateSimulationImageToDDB(image_id, bucket_name, path, status = "completed"){
     return new Promise((resolve, reject) => {
-        if(image_id == NULL){
+        if(image_id == null){
             return resolve({ message : "No Image Simulation ID provided"});
         }
         else{
             var dbInsert = {
                 TableName: "simulation_images",
                 Item: { image_id : image_id,
-                    base64_encoded_simulation_image : base64_encoded_simulation_image,
-                    status : status }
+                        bucket_name : bucket_name,
+                        path : path,
+                        status : status }
                 };
                 docClient.put(dbInsert, function (err, data) {
                     if (err) {
@@ -1643,12 +1647,14 @@ function updateSimulationImageToDDB(image_id, base64_encoded_simulation_image, s
 
                 for(var i =0 ; i< result.length ; i++){
                     var temp = result[i];
+                    console.log("SIMULATION RUNNING FOR ,",temp);
 
                     addPlayerToTeamInDDB(temp.organization, temp.team, temp.player_id)
                     .then(d => {
                         // Generate simulation for player
                         getCumulativeSensorData(temp)
                         .then(player_data_array => {
+                          console.log("Player records fetched are :", player_data_array);
 
                             if(player_data_array.length == 0 ){
 
@@ -1663,12 +1669,14 @@ function updateSimulationImageToDDB(image_id, base64_encoded_simulation_image, s
                             else{
                                 generateSimulationForPlayers(player_data_array)
                                 .then(urls => {
-                                        simulation_result_urls.concat(urls)
+                                        console.log(simulation_result_urls);
+                                        console.log("URLS RECEIVED IS",urls);
+                                        simulation_result_urls.push(urls)
                                         counter++;
                                         if(counter == result.length){
                                             res.send({
                                                         message : "success",
-                                                        image_url : simulation_result_urls
+                                                        image_url : _.spread(_.union)(simulation_result_urls)
                                                     })
                                         }
                                 })
@@ -2363,16 +2371,25 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
             return new Promise((resolve, reject) => {
                 var counter = 0 ;
                 var simulation_result_urls = [];
+                
+                console.log("DATA _--------------------->>>>>>>>>>>>>>>>>>>>>>>",player_data_array);
 
-                for(var j = 0 ; j < player_data_array.length ; j++){
+                player_data_array.forEach(( player,j ) => {
 
-                    var _temp_player = player_data_array[j];
+                    var _temp_player = player;
                     var index = j ;
-                    console.log('TEMP OBJECT IS ', _temp_player)
-                    simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${_temp_player.image_id}`)
-                    updateSimulationImageToDDB(_temp_player.image_id, "PROCESSING", "pending")
+                  updateSimulationImageToDDB(_temp_player.image_id, config.usersbucket, "null", "pending")
                     .then(value => {
+                        console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
+                      
+                      simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${_temp_player.image_id}`)
                         generateSimulationForPlayer(_temp_player, index, _temp_player.image_id)
+                        .then(value =>{
+                                console.log(value);
+                        })
+                      .catch(err => {
+                                console.log(err);
+                      })
 
                             counter++;
 
@@ -2396,15 +2413,16 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                         // })
                     })
                     .catch(err => {
+                      console.log("In error", err);
                         counter = result.length ;
                         j = player_data_array.length ;
                         reject(err)
                     })
-                }
+                })
             })
         }
 
-        function generateSimulationForPlayer(obj, index, image_id = NULL){
+        function generateSimulationForPlayer(obj, index, image_id = null){
             return new Promise((resolve, reject)=>{
                 var playerData = {
                     "player": {
@@ -2457,22 +2475,22 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                 })
                 .then(d =>{
                     // Upload the file on S3 bucket
+                    console.log("IMAGE ID IS ", image_id);
                     let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
                     return uploadPlayerSimulationFile(obj.player_id.split("$")[0].split(" ").join("-"), simulationFilePath, `${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`, obj.date.split("/").join("-"), image_id)
 
                 })
                 .then(d =>{
-                    console.log(d);
+                    console.log("+++++++++++++++++++++ is ******** \n",d);
                     let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
 
                     resolve({
                         message : "success",
-                        data  : d,
-                        base64 : base64_encode(simulationFilePath)
+                        data  : d
                     })
                 })
                 .catch(err => {
-                    console.log(err);
+                    console.log("In 1st Error",err);
                     reject({
                         message : "failure",
                         error : err
