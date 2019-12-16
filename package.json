@@ -26,6 +26,7 @@
     "nodemailer": "^6.3.1",
     "phantom-html-to-pdf": "^0.6.0",
     "phantomjs": "^2.1.7",
+    "shortid": "^2.2.15",
     "uuid": "^3.3.2",
     "webpage": "^0.3.0",
     "xlsx": "^0.15.3",
