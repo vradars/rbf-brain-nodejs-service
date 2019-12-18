@@ -68,14 +68,15 @@ var config = {
     "ComputeInstanceEndpoint" : process.env.COMPUTEINSTANCEENDPOINT,
     "userPoolId": process.env.USERPOOLID,
     "ClientId" : process.env.CLIENTID,
-    "react_website_url" : process.env.REACTURL
+    "react_website_url" : process.env.REACTURL,
+    "simulation_result_host_url" : process.env.SIMULATION_RESULT_HOST_URL
 };
 
 const subject_signature  = fs.readFileSync("data/base64")
 
 var config_env = config ;
-var config = require('./config/configuration_keys.json');
-var config_env = config;
+//var config = require('./config/configuration_keys.json');
+//var config_env = config;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -2371,7 +2372,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
             return new Promise((resolve, reject) => {
                 var counter = 0 ;
                 var simulation_result_urls = [];
-                
+
                 console.log("DATA _--------------------->>>>>>>>>>>>>>>>>>>>>>>",player_data_array);
 
                 player_data_array.forEach(( player,j ) => {
@@ -2381,7 +2382,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                   updateSimulationImageToDDB(_temp_player.image_id, config.usersbucket, "null", "pending")
                     .then(value => {
                         console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
-                      
+
                       simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${_temp_player.image_id}`)
                         generateSimulationForPlayer(_temp_player, index, _temp_player.image_id)
                         .then(value =>{
