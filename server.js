@@ -53,7 +53,7 @@ shortid = require('shortid'),
 moment = require('moment');
 
 var _ = require('lodash');
-
+var simulation_timer = 120000 ; // 4 minutes in milliseconds
 
 
 // ================================================
@@ -105,8 +105,8 @@ var config = {
 const subject_signature  = fs.readFileSync("data/base64")
 
 var config_env = config ;
-//var config = require('./config/configuration_keys.json');
-//var config_env = config;
+// var config = require('./config/configuration_keys.json');
+// var config_env = config;
 
 //AWS.config.loadFromPath('./config/configuration_keys.json');
 const BUCKET_NAME = config_env.usersbucket;
@@ -148,6 +148,8 @@ function concatArrays(arrays) {
     return [].concat.apply([], arrays);
 }
 
+// Promise to delay a function or any promise
+const delay = t => new Promise(resolve => setTimeout(resolve, t));
 
 // ======================================
 //              FUNCTIONS
@@ -224,6 +226,20 @@ function generateJWToken(obj,expiry){
     return new Promise((resolve, reject) =>{
         console.log("THE VALUES IS ", config_env.jwt_secret);
         jwt.sign(obj, config_env.jwt_secret, { expiresIn: expiry }, (err,token)=> {
+            if(err){
+                reject(err);
+            }
+            else{
+                resolve(token);
+            }
+        })
+    })
+}
+
+function generateJWTokenWithNoExpiry(obj, secret){
+    return new Promise((resolve, reject) =>{
+        console.log("THE VALUES IS ", config_env.jwt_secret);
+        jwt.sign(obj, secret, (err,token)=> {
             if(err){
                 reject(err);
             }
@@ -1507,28 +1523,76 @@ function storeSensorData(sensor_data_array){
     })
 }
 
-function updateSimulationImageToDDB(image_id, bucket_name, path, status = "completed"){
+function updateSimulationImageToDDB(image_id, bucket_name, path, status = "completed", token = null, secret = null){
     return new Promise((resolve, reject) => {
         if(image_id == null){
             return resolve({ message : "No Image Simulation ID provided"});
         }
         else{
-            var dbInsert = {
-                TableName: "simulation_images",
-                Item: { image_id : image_id,
-                        bucket_name : bucket_name,
-                        path : path,
-                        status : status }
-                };
-                docClient.put(dbInsert, function (err, data) {
-                    if (err) {
-                        console.log(err);
-                        reject(err);
+// if flag is true it means data array is to be created
+        let params = {
+            TableName: "simulation_images",
+            Key: {
+                "image_id": image_id
+            }
+        };
+        docClient.get(params, function (err, data) {
+            if (err) {
+                reject(err);
+            }
+            else {
+                if (Object.keys(data).length == 0 && data.constructor === Object) {
+                    var dbInsert = {
+                        TableName: "simulation_images",
+                        Item: { image_id : image_id,
+                                bucket_name : bucket_name,
+                                path : path,
+                                status : status,
+                                token : token,
+                                secret : secret
+                                }
+                        };
+                        docClient.put(dbInsert, function (err, data) {
+                            if (err) {
+                                console.log(err);
+                                reject(err);
 
-                    } else {
-                        resolve(data)
+                            } else {
+                                resolve(data)
+                            }
+                        });
                     }
-                });
+                    else {
+                        // If Player does not exists in Team
+                            var dbInsert = {
+                                TableName: "simulation_images",
+                                Key: { "image_id" : image_id},
+                            UpdateExpression: "set #path = :path,#status = :status",
+                            ExpressionAttributeNames: {
+                                "#path": "path",
+                                "#status": "status",
+                            },
+                            ExpressionAttributeValues: {
+                                ":path": path,
+                                ":status": status
+                            },
+                            ReturnValues: "UPDATED_NEW"
+                        }
+
+                        docClient.update(dbInsert, function (err, data) {
+                            if (err) {
+                                console.log("ERROR WHILE CREATING DATA",err);
+                                reject(err);
+
+                            } else {
+                                resolve(data)
+                            }
+                        });
+
+                }
+            }
+        });
+
         }
         })
     }
@@ -2409,18 +2473,23 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
                     var _temp_player = player;
                     var index = j ;
-                  updateSimulationImageToDDB(_temp_player.image_id, config.usersbucket, "null", "pending")
+                    var token_secret = shortid.generate();
+                    generateJWTokenWithNoExpiry({ image_id : _temp_player.image_id }, token_secret)
+                    .then( image_token => {
+                         
+                  updateSimulationImageToDDB(_temp_player.image_id, config.usersbucket, "null", "pending", image_token, token_secret)
                     .then(value => {
                         console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
 
-                      simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${_temp_player.image_id}`)
-                        generateSimulationForPlayer(_temp_player, index, _temp_player.image_id)
-                        .then(value =>{
-                                console.log(value);
-                        })
-                      .catch(err => {
-                                console.log(err);
-                      })
+                      simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${image_token}/${_temp_player.image_id}`)
+                        setTimeout(generateSimulationForPlayer, simulation_timer, _temp_player, index, _temp_player.image_id, image_token, token_secret);                           
+//                        generateSimulationForPlayer(_temp_player, index, _temp_player.image_id)
+//                        .then(value =>{
+//                                console.log(value);
+//                        })
+//                      .catch(err => {
+//                                console.log(err);
+//                      })
 
                             counter++;
 
@@ -2449,11 +2518,19 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                         j = player_data_array.length ;
                         reject(err)
                     })
+                    })
+                    .catch( err => {
+                      
+                      console.log("In error", err);
+                        counter = result.length ;
+                        j = player_data_array.length ;
+                        reject(err)
+                    })
                 })
             })
         }
 
-        function generateSimulationForPlayer(obj, index, image_id = null){
+        function generateSimulationForPlayer(obj, index, image_id = null, token = null, token_secret = null){
             return new Promise((resolve, reject)=>{
                 var playerData = {
                     "player": {
