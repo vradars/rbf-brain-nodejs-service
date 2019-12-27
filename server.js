@@ -615,15 +615,11 @@ if (cluster.isMaster) {
                                     reject(err);
                                 }
                                 else{
-                                    console.log(`python3 ${__dirname}/../PyGeM/tutorials/RBFfinal.py`);
-                                    executeShellCommands(`python3 ${__dirname}/../PyGeM/tutorials/RBFfinal.py`).then((d)=>{
+                                     generateMorphedVTK(obj)
+                                    .then((d)=>{
 
-                                        var cmd = `mkdir -p ../users_data/${user_id}/rbf/ ; ../MergePolyData/build/MergePolyData -in ./brain.vtk -out ../users_data/${user_id}/rbf/${obj.file_name}.vtk -abaqus ;`
+                                        var cmd = `mkdir -p ../users_data/${user_id}/rbf/ ; ../MergePolyData/build/MergePolyData -in ../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ../users_data/${user_id}/rbf/${obj.file_name}.vtk -abaqus ;`
                                         executeShellCommands(cmd)
-                                        .then((d)=>{
-
-                                            return generateMorphedVTK(obj);
-                                        })
                                         .then(d => {
                                             return generateCentroidLookUpTable(obj);
                                         })
@@ -1199,7 +1195,7 @@ function generateParametersFileFromStl(obj){
 
 function generateMorphedVTK(obj){
     return new Promise((resolve, reject) =>{
-        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/morphed_vtk/ ; python3  ../rbf-brain/RBF_coarse.py  --p ../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm --m ../users_data/${obj.user_cognito_id}/rbf/${obj.file_name}.vtk --output ../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk`;
+        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/morphed_vtk/ ; python3  ../rbf-brain/RBF_coarse.py  --p ../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm --m ../rbf-brain/coarse_mesh.vtk --output ../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk`;
         console.log(cmd);
         executeShellCommands(cmd)
         .then(d => {
@@ -1215,7 +1211,7 @@ function generateMorphedVTK(obj){
 
 function generateCentroidLookUpTable(obj){
     return new Promise((resolve, reject) =>{
-        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/centroid_table/ ; pvpython ../rbf-brain/lookuptablegenerator_coarse.py --input ../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk --output ../users_data/${obj.user_cognito_id}/centroid_table/${obj.file_name}.txt`
+        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/centroid_table/ ; pvpython ../rbf-brain/lookuptablegenerator_coarse.py --centroid ../rbf-brain/centroid_coarse.txt --input ../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk --output ../users_data/${obj.user_cognito_id}/centroid_table/${obj.file_name}.txt`
         console.log(cmd);
         executeShellCommands(cmd)
         .then(d => {
@@ -1244,7 +1240,7 @@ function uploadCentroidLookUpFile(obj){
                 reject(err)
             }
             else {
-                params.Key = user_id + "/profile/centroid_table/" + obj.file_name + ".txt";
+                params.Key = obj.user_cognito_id + "/profile/centroid_table/" + obj.file_name + ".txt";
                 params.Body = headBuffer;
                 // Call S3 Upload
                 s3.upload(params, (err, data) => {
@@ -1261,6 +1257,23 @@ function uploadCentroidLookUpFile(obj){
 
     })
 }
+
+function cleanUp(obj){
+return new Promise((resolve, reject) =>{
+
+  executeShellCommands(`rm -fr ../users_data/${obj.user_cognito_id}/ ; rm -rf ./avatars/${obj.user_cognito_id}/ ; rm -f ./avatars/${obj.user_cognito_id}.zip;`)
+  .then( d =>{  
+      resolve(d);
+  })
+  .catch( err =>{
+    reject(err);
+
+  })
+
+
+})
+}
+
 
 function getCumulativeAccelerationData(obj){
     return new Promise((resolve,reject)=>{
@@ -2150,9 +2163,19 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                                                         //  return updateSimulationFileStatusInDB(req.body)
 
                                                         //}).then((data) => {
-
-                                                        res.send({
-                                                            message : "success"
+                                                        // Function to clean up
+                                                        // the files generated
+                                                        cleanUp(req.body)
+                                                        .then( d =>{
+                                                            res.send({
+                                                                message : "success"
+                                                            })
+                                                        })
+                                                        .catch( err => {
+                                                            res.send({
+                                                                message : "failure",
+                                                                error : err
+                                                            })
                                                         })
 
                                                         //}).catch((err)=>{
