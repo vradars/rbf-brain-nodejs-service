@@ -28,766 +28,768 @@ if (cluster.isMaster) {
 
 
 
-// ======================================
-//         INITIALIZING DEPENDENCIES
-// ======================================
-const express = require('express');
-app = express(),
-bodyParser = require("body-parser"),
-AWS = require('aws-sdk'),
-cookieParser = require('cookie-parser'),
-fs = require("fs"),
-path = require("path"),
-{spawn} = require('child_process'),
-multer = require('multer'),
-ms = require("ms"),
-download = require('download-file'),
-execFile = require('child_process').execFile,
-conversion = require("phantom-html-to-pdf")(),
-XLSX = require('xlsx'),
-ejs = require('ejs'),
-nodemailer = require('nodemailer'),
-jwt = require('jsonwebtoken'),
-fs = require('fs'),
-shortid = require('shortid'),
-moment = require('moment');
+    // ======================================
+    //         INITIALIZING DEPENDENCIES
+    // ======================================
+    const express = require('express');
+    app = express(),
+    bodyParser = require("body-parser"),
+    AWS = require('aws-sdk'),
+    cookieParser = require('cookie-parser'),
+    fs = require("fs"),
+    path = require("path"),
+    {spawn} = require('child_process'),
+    multer = require('multer'),
+    ms = require("ms"),
+    download = require('download-file'),
+    execFile = require('child_process').execFile,
+    conversion = require("phantom-html-to-pdf")(),
+    XLSX = require('xlsx'),
+    ejs = require('ejs'),
+    nodemailer = require('nodemailer'),
+    jwt = require('jsonwebtoken'),
+    fs = require('fs'),
+    shortid = require('shortid'),
+    moment = require('moment');
 
-var _ = require('lodash');
-var simulation_timer = 120000 ; // 4 minutes in milliseconds
+    var _ = require('lodash');
+    var simulation_timer = 120000 ; // 4 minutes in milliseconds
 
 
-// ================================================
-//            SERVER CONFIGURATION
-// ================================================
-function setConnectionTimeout(time) {
-    var delay = typeof time === 'string'
-    ? ms(time)
-    : Number(time || 5000);
+    // ================================================
+    //            SERVER CONFIGURATION
+    // ================================================
+    function setConnectionTimeout(time) {
+        var delay = typeof time === 'string'
+        ? ms(time)
+        : Number(time || 5000);
 
-    return function (req, res, next) {
-        res.connection.setTimeout(delay);
-        next();
+        return function (req, res, next) {
+            res.connection.setTimeout(delay);
+            next();
+        }
     }
-}
 
-// ======================================
-//         	GLOBAL VARIABLES
-// ======================================
+    // ======================================
+    //         	GLOBAL VARIABLES
+    // ======================================
 
-const successMessage = "success";
-const failureMessage = "failure";
-const apiPrefix = "/api/"
+    const successMessage = "success";
+    const failureMessage = "failure";
+    const apiPrefix = "/api/"
 
-// ======================================
-//       CONFIGURING AWS SDK & EXPESS
-// ======================================
-// Avatar Configuration
-//
-var config = {
+    // ======================================
+    //       CONFIGURING AWS SDK & EXPESS
+    // ======================================
+    // Avatar Configuration
+    //
+    var config = {
 
-    "awsAccessKeyId": process.env.AWSACCESSKEYID,
-    "awsSecretAccessKey": process.env.AWSACCESSSECRETKEY,
-    "avatar3dClientId": process.env.AVATAR3DCLIENTID,
-    "avatar3dclientSecret": process.env.AVATAR3DCLIENTSECRET,
-    "region" : process.env.REGION,
-    "usersbucket": process.env.USERSBUCKET,
-    "apiVersion" : process.env.APIVERSION,
-    "jwt_secret" : process.env.JWTSECRET,
-    "email_id" : process.env.EMAILID,
-    "mail_list" : process.env.MAILLIST,
-    "ComputeInstanceEndpoint" : process.env.COMPUTEINSTANCEENDPOINT,
-    "userPoolId": process.env.USERPOOLID,
-    "ClientId" : process.env.CLIENTID,
-    "react_website_url" : process.env.REACTURL,
-    "simulation_result_host_url" : process.env.SIMULATION_RESULT_HOST_URL
-};
+        "awsAccessKeyId": process.env.AWSACCESSKEYID,
+        "awsSecretAccessKey": process.env.AWSACCESSSECRETKEY,
+        "avatar3dClientId": process.env.AVATAR3DCLIENTID,
+        "avatar3dclientSecret": process.env.AVATAR3DCLIENTSECRET,
+        "region" : process.env.REGION,
+        "usersbucket": process.env.USERSBUCKET,
+        "apiVersion" : process.env.APIVERSION,
+        "jwt_secret" : process.env.JWTSECRET,
+        "email_id" : process.env.EMAILID,
+        "mail_list" : process.env.MAILLIST,
+        "ComputeInstanceEndpoint" : process.env.COMPUTEINSTANCEENDPOINT,
+        "userPoolId": process.env.USERPOOLID,
+        "ClientId" : process.env.CLIENTID,
+        "react_website_url" : process.env.REACTURL,
+        "simulation_result_host_url" : process.env.SIMULATION_RESULT_HOST_URL
+    };
 
-const subject_signature  = fs.readFileSync("data/base64")
+    const subject_signature  = fs.readFileSync("data/base64")
 
-var config_env = config ;
-// var config = require('./config/configuration_keys.json');
-// var config_env = config;
+    var config_env = config ;
+    // var config = require('./config/configuration_keys.json');
+    // var config_env = config;
 
-//AWS.config.loadFromPath('./config/configuration_keys.json');
-const BUCKET_NAME = config_env.usersbucket;
+    //AWS.config.loadFromPath('./config/configuration_keys.json');
+    const BUCKET_NAME = config_env.usersbucket;
 
-// AWS Credentials loaded
-var myconfig = AWS.config.update({
-    accessKeyId: config_env.awsAccessKeyId, secretAccessKey: config_env.awsSecretAccessKey, region: config_env.region
-});
-var storage = multer.memoryStorage()
-var upload = multer({
-    storage: storage
-});
+    // AWS Credentials loaded
+    var myconfig = AWS.config.update({
+        accessKeyId: config_env.awsAccessKeyId, secretAccessKey: config_env.awsSecretAccessKey, region: config_env.region
+    });
+    var storage = multer.memoryStorage()
+    var upload = multer({
+        storage: storage
+    });
 
-var s3 = new AWS.S3();
+    var s3 = new AWS.S3();
 
-const docClient = new AWS.DynamoDB.DocumentClient({
-    convertEmptyValues: true
-});
+    const docClient = new AWS.DynamoDB.DocumentClient({
+        convertEmptyValues: true
+    });
 
-// NODEMAILER CONFIGURATION
-var email = config_env.email_id ;
-let transport = nodemailer.createTransport({
-    SES: new AWS.SES({ apiVersion: "2010-12-01" })
-})
-console.log(email, config_env.email_id_password);
-
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
-
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'ejs');
-
-// ===========================================
-//     UTILITY FUNCTIONS
-// ===========================================
-
-function concatArrays(arrays) {
-    return [].concat.apply([], arrays);
-}
-
-// Promise to delay a function or any promise
-const delay = t => new Promise(resolve => setTimeout(resolve, t));
-
-// ======================================
-//              FUNCTIONS
-// ======================================
-
-function getUserDetails(user_name, cb) {
-    return new Promise((resolve, reject) =>{
-        var db_table = {
-            TableName: 'users',
-            Key: {
-                "user_cognito_id": user_name
-            }
-        };
-        docClient.get(db_table, function (err, data) {
-            if (err) {
-
-                reject(err)
-
-            } else {
-
-                resolve(data);
-            }
-        });
+    // NODEMAILER CONFIGURATION
+    var email = config_env.email_id ;
+    let transport = nodemailer.createTransport({
+        SES: new AWS.SES({ apiVersion: "2010-12-01" })
     })
-}
+    console.log(email, config_env.email_id_password);
+
+    app.use(bodyParser.urlencoded({ extended: true }));
+    app.use(bodyParser.json());
+
+    // view engine setup
+    app.set('views', path.join(__dirname, 'views'));
+    app.set('view engine', 'ejs');
+
+    // ===========================================
+    //     UTILITY FUNCTIONS
+    // ===========================================
+
+    function concatArrays(arrays) {
+        return [].concat.apply([], arrays);
+    }
+
+    // Promise to delay a function or any promise
+    const delay = t => new Promise(resolve => setTimeout(resolve, t));
+
+    // ======================================
+    //              FUNCTIONS
+    // ======================================
+
+    function getUserDetails(user_name, cb) {
+        return new Promise((resolve, reject) =>{
+            var db_table = {
+                TableName: 'users',
+                Key: {
+                    "user_cognito_id": user_name
+                }
+            };
+            docClient.get(db_table, function (err, data) {
+                if (err) {
+
+                    reject(err)
+
+                } else {
+
+                    resolve(data);
+                }
+            });
+        })
+    }
 
 
 
-function sendMail(recepient, subject, body, attachement_name = null, attachment = null ) {
-    console.log("Mail is being sent to ", recepient, " by ", email) ;
-    return new Promise((resolve, reject) =>{
+    function sendMail(recepient, subject, body, attachement_name = null, attachment = null ) {
+        console.log("Mail is being sent to ", recepient, " by ", email) ;
+        return new Promise((resolve, reject) =>{
 
-        console.log(email);
-        var message = {
-            from : email,
-            to : recepient,
-            subject : subject,
-            priority : 'high'
-        }
-        if(body.includes('html'))
-        {
-            message["html"] = body ;
-        }
-        else{
-            message["text"] = body ;
-        }
-
-        if(attachment != null){
-            message["attachments"] = {
-                filename : attachement_name,
-                path : attachment,
-                cid : "IRB"
+            console.log(email);
+            var message = {
+                from : email,
+                to : recepient,
+                subject : subject,
+                priority : 'high'
             }
-        }
-
-        transport.sendMail(message,(err,info) =>{
-
-            if(err){
-                reject(err)
-                console.log("error while sending mail", err);
+            if(body.includes('html'))
+            {
+                message["html"] = body ;
             }
             else{
-                console.log('success while sending mail')
-                resolve({
-                    status : "success",
-                    log : `Mail sent `
-                })
+                message["text"] = body ;
             }
-        })
-    })
-}
 
-function generateJWToken(obj,expiry){
-    return new Promise((resolve, reject) =>{
-        console.log("THE VALUES IS ", config_env.jwt_secret);
-        jwt.sign(obj, config_env.jwt_secret, { expiresIn: expiry }, (err,token)=> {
-            if(err){
-                reject(err);
+            if(attachment != null){
+                message["attachments"] = {
+                    filename : attachement_name,
+                    path : attachment,
+                    cid : "IRB"
+                }
             }
-            else{
-                resolve(token);
-            }
-        })
-    })
-}
 
-function generateJWTokenWithNoExpiry(obj, secret){
-    return new Promise((resolve, reject) =>{
-        console.log("THE VALUES IS ", config_env.jwt_secret);
-        jwt.sign(obj, secret, (err,token)=> {
-            if(err){
-                reject(err);
-            }
-            else{
-                resolve(token);
-            }
-        })
-    })
-}
+            transport.sendMail(message,(err,info) =>{
 
-function verifyToken(token){
-    return new Promise((resolve, reject) =>{
-        jwt.verify(token, config_env.jwt_secret, (err,decoded)=> {
-            if(err){
-                console.log(err);
-                reject(err);
-            }
-            else{
-                resolve(decoded);
-            }
-        })
-    })
-}
-
-function executeShellCommands(cmd) {
-    return new Promise((resolve, reject) => {
-        var command = spawn(cmd, { shell: true })
-        var result = ''
-        command.stdout.on('data', function (data) {
-            result += data.toString()
-        })
-        command.on('close', function (code) {
-            resolve(result)
-        })
-        command.on('error', function (err) { reject(err) })
-    })
-}
-
-
-function generate3DModel(obj){
-    console.log(obj);
-    return new Promise((resolve, reject)=> {
-
-
-        const pythonProcess = spawn("python", [
-            __dirname + "/config/AvatarTest.py",
-            obj.image_url,
-            config.avatar3dClientId,
-            config.avatar3dclientSecret,
-            obj.user_cognito_id
-        ]);
-        pythonProcess.stdout.on("data", data => {
-
-            execFile('zip', ['-r', `./avatars/${obj.user_cognito_id}.zip`, `./avatars/${obj.user_cognito_id}/`], function(err, stdout) {
                 if(err){
-                    console.log("ERROR in file upload ",err);
+                    reject(err)
+                    console.log("error while sending mail", err);
+                }
+                else{
+                    console.log('success while sending mail')
+                    resolve({
+                        status : "success",
+                        log : `Mail sent `
+                    })
+                }
+            })
+        })
+    }
+
+    function generateJWToken(obj,expiry){
+        return new Promise((resolve, reject) =>{
+            console.log("THE VALUES IS ", config_env.jwt_secret);
+            jwt.sign(obj, config_env.jwt_secret, { expiresIn: expiry }, (err,token)=> {
+                if(err){
                     reject(err);
                 }
                 else{
-                    console.log("",stdout);
-                    resolve(stdout);
+                    resolve(token);
                 }
-            });
+            })
         })
-        pythonProcess.stderr.on("data", data => {
-            console.log(`error:${data}`);
-            reject(data);
+    }
 
-        });
-        pythonProcess.on("close", data => {
-            if (data == "1" || data == 1) {
+    function generateJWTokenWithNoExpiry(obj, secret){
+        return new Promise((resolve, reject) =>{
+            console.log("THE VALUES IS ", config_env.jwt_secret);
+            jwt.sign(obj, secret, (err,token)=> {
+                if(err){
+                    reject(err);
+                }
+                else{
+                    resolve(token);
+                }
+            })
+        })
+    }
+
+    function verifyToken(token){
+        return new Promise((resolve, reject) =>{
+            jwt.verify(token, config_env.jwt_secret, (err,decoded)=> {
+                if(err){
+                    console.log(err);
+                    reject(err);
+                }
+                else{
+                    resolve(decoded);
+                }
+            })
+        })
+    }
+
+    function executeShellCommands(cmd) {
+        return new Promise((resolve, reject) => {
+            var command = spawn(cmd, { shell: true })
+            var result = ''
+            command.stdout.on('data', function (data) {
+                result += data.toString()
+            })
+            command.on('close', function (code) {
+                resolve(result)
+            })
+            command.on('error', function (err) { reject(err) })
+        })
+    }
+
+
+    function generate3DModel(obj){
+        console.log(obj);
+        return new Promise((resolve, reject)=> {
+
+
+            const pythonProcess = spawn("python", [
+                __dirname + "/config/AvatarTest.py",
+                obj.image_url,
+                config.avatar3dClientId,
+                config.avatar3dclientSecret,
+                obj.user_cognito_id
+            ]);
+            pythonProcess.stdout.on("data", data => {
+
+                execFile('zip', ['-r', `./avatars/${obj.user_cognito_id}.zip`, `./avatars/${obj.user_cognito_id}/`], function(err, stdout) {
+                    if(err){
+                        console.log("ERROR in file upload ",err);
+                        reject(err);
+                    }
+                    else{
+                        console.log("",stdout);
+                        resolve(stdout);
+                    }
+                });
+            })
+            pythonProcess.stderr.on("data", data => {
+                console.log(`error:${data}`);
                 reject(data);
+
+            });
+            pythonProcess.on("close", data => {
+                if (data == "1" || data == 1) {
+                    reject(data);
+                }
+                console.log(`child process close with ${data}`)
+            });
+
+
+
+
+
+        })
+    }
+
+
+
+
+
+    function getFileSignedUrl(key, cb) {
+
+        var params = {
+            Bucket: BUCKET_NAME,
+            Key: key
+        };
+        s3.getSignedUrl('getObject', params, function (err, url) {
+            if (err) {
+                cb(err, "");
+            } else {
+                cb("", url);
             }
-            console.log(`child process close with ${data}`)
+        });
+    }
+
+    function getUploadedModelFileList(user_name, cb) {
+        const s3Params = {
+            Bucket: BUCKET_NAME,
+            Delimiter: '/',
+            Prefix: user_name + '/profile/model/'
+            // Key: req.query.key + ''
+        };
+
+        s3.listObjectsV2(s3Params, (err, data) => {
+            if (err) {
+                //   console.log(err);
+                cb(err, "");
+            }
+            console.log(data);
+            cb("", data.Contents);
         });
 
+    }
+    function upload3DModelZip(obj,cb){
+        console.log("IN UPLOAD MODEL");
+        var uploadParams = {
+            Bucket: config.usersbucket,
+            Key: `${obj.user_cognito_id}/profile/model/${obj.file_name}.zip`, // pass key
+            Body: null,
+        };
+        fs.readFile(`./avatars/${obj.user_cognito_id}.zip`, function (err, headBuffer) {
+            if (err) {
+                console.log(err);
+                cb(err,'');
+            }
+            else {
+                uploadParams.Body = headBuffer;
+                s3.upload(uploadParams, (err, data) => {
+                    if (err) {
+                        cb(err,'');
+                    }
+                    else {
+                        cb('',data);
+                    }
+                });
+
+            }
+        })
+
+    }
+
+    function uploadINPFile(user_id,timestamp,cb){
 
 
+        var uploadParams = {
+            Bucket: config.usersbucket,
+            Key: '', // pass key
+            Body: null, // pass file body
+        };
+
+        const params = uploadParams;
+
+        fs.readFile(`../users_data/${user_id}/rbf/${timestamp}.inp`, function (err, headBuffer) {
+            if (err) {
+                cb(err,'');
+            }
+            else {
+                params.Key = user_id + "/profile/rbf/" + timestamp + ".inp";
+                params.Body = headBuffer;
+                // Call S3 Upload
+                s3.upload(params, (err, data) => {
+                    if (err) {
+                        cb(err,'');
+                    }
+                    else {
+                        cb('',data);
+                    }
+                });
+
+            }
+        })
+
+    }
 
 
-    })
-}
+    function uploadVTKFile(user_id,timestamp,cb){
 
 
+        var uploadParams = {
+            Bucket: config.usersbucket,
+            Key: '', // pass key
+            Body: null, // pass file body
+        };
+
+        const params = uploadParams;
+
+        fs.readFile(`../users_data/${user_id}/morphed_vtk/${timestamp}.vtk`, function (err, headBuffer) {
+            if (err) {
+                cb(err,'');
+            }
+            else {
+                params.Key = user_id + "/profile/rbf/vtk/" + timestamp + ".vtk";
+                params.Body = headBuffer;
+                // Call S3 Upload
+                s3.upload(params, (err, data) => {
+                    if (err) {
+                        cb(err,'');
+                    }
+                    else {
+                        cb('',data);
+                    }
+                });
+
+            }
+        })
+
+    }
+
+    function uploadSimulationFile(user_id,timestamp,cb){
 
 
+        var uploadParams = {
+            Bucket: config.usersbucket,
+            Key: '', // pass key
+            Body: null, // pass file body
+        };
 
-function getFileSignedUrl(key, cb) {
+        const params = uploadParams;
 
-    var params = {
-        Bucket: BUCKET_NAME,
-        Key: key
-    };
-    s3.getSignedUrl('getObject', params, function (err, url) {
-        if (err) {
-            cb(err, "");
-        } else {
-            cb("", url);
-        }
-    });
-}
+        fs.readFile(`/home/ec2-user/FemTech/build/examples/ex5/${user_id}-${timestamp}.png`, function (err, headBuffer) {
+            if (err) {
+                cb(err,'');
+            }
+            else {
+                params.Key = user_id + "/profile/simulation/" + timestamp + ".png";
+                params.Body = headBuffer;
+                // Call S3 Upload
+                s3.upload(params, (err, data) => {
+                    if (err) {
+                        cb(err,'');
+                    }
+                    else {
+                        cb('',data);
+                    }
+                });
 
-function getUploadedModelFileList(user_name, cb) {
-    const s3Params = {
-        Bucket: BUCKET_NAME,
-        Delimiter: '/',
-        Prefix: user_name + '/profile/model/'
-        // Key: req.query.key + ''
-    };
+            }
+        })
 
-    s3.listObjectsV2(s3Params, (err, data) => {
-        if (err) {
-            //   console.log(err);
-            cb(err, "");
-        }
-        console.log(data);
-        cb("", data.Contents);
-    });
-
-}
-function upload3DModelZip(obj,cb){
-    console.log("IN UPLOAD MODEL");
-    var uploadParams = {
-        Bucket: config.usersbucket,
-        Key: `${obj.user_cognito_id}/profile/model/${obj.file_name}.zip`, // pass key
-        Body: null,
-    };
-    fs.readFile(`./avatars/${obj.user_cognito_id}.zip`, function (err, headBuffer) {
-        if (err) {
-            console.log(err);
-            cb(err,'');
-        }
-        else {
-            uploadParams.Body = headBuffer;
-            s3.upload(uploadParams, (err, data) => {
-                if (err) {
-                    cb(err,'');
-                }
-                else {
-                    cb('',data);
-                }
-            });
-
-        }
-    })
-
-}
-
-function uploadINPFile(user_id,timestamp,cb){
+    }
 
 
-    var uploadParams = {
-        Bucket: config.usersbucket,
-        Key: '', // pass key
-        Body: null, // pass file body
-    };
-
-    const params = uploadParams;
-
-    fs.readFile(`../users_data/${user_id}/rbf/${timestamp}.inp`, function (err, headBuffer) {
-        if (err) {
-            cb(err,'');
-        }
-        else {
-            params.Key = user_id + "/profile/rbf/" + timestamp + ".inp";
-            params.Body = headBuffer;
-            // Call S3 Upload
-            s3.upload(params, (err, data) => {
-                if (err) {
-                    cb(err,'');
-                }
-                else {
-                    cb('',data);
-                }
-            });
-
-        }
-    })
-
-}
+    function uploadGeneratedSelfieImage(obj,cb){
 
 
-function uploadVTKFile(user_id,timestamp,cb){
+        var uploadParams = {
+            Bucket: config.usersbucket,
+            Key: '', // pass key
+            Body: null, // pass file body
+        };
 
+        const params = uploadParams;
 
-    var uploadParams = {
-        Bucket: config.usersbucket,
-        Key: '', // pass key
-        Body: null, // pass file body
-    };
+        fs.readFile(`./avatars/${obj.user_cognito_id}/head/${obj.file_name}.png`, function (err, headBuffer) {
+            if (err) {
+                cb(err,'');
+            }
+            else {
+                params.Key = `${obj.user_cognito_id}/profile/image/${obj.file_name}.png`;
+                params.Body = headBuffer;
+                // Call S3 Upload
+                s3.upload(params, (err, data) => {
+                    if (err) {
+                        cb(err,'');
+                    }
+                    else {
+                        cb('',data);
+                    }
+                });
 
-    const params = uploadParams;
+            }
+        })
 
-    fs.readFile(`../users_data/${user_id}/rbf/${timestamp}.vtk`, function (err, headBuffer) {
-        if (err) {
-            cb(err,'');
-        }
-        else {
-            params.Key = user_id + "/profile/rbf/vtk/" + timestamp + ".vtk";
-            params.Body = headBuffer;
-            // Call S3 Upload
-            s3.upload(params, (err, data) => {
-                if (err) {
-                    cb(err,'');
-                }
-                else {
-                    cb('',data);
-                }
-            });
+    }
 
-        }
-    })
+    function generateSimulationFile(user_id){
+        return new Promise((resolve,reject)=>{
+            // 1. Do Simulation
+            // 2. Post Process Simulation
+            // 3. Store the file in DynamoDB
 
-}
-
-function uploadSimulationFile(user_id,timestamp,cb){
-
-
-    var uploadParams = {
-        Bucket: config.usersbucket,
-        Key: '', // pass key
-        Body: null, // pass file body
-    };
-
-    const params = uploadParams;
-
-    fs.readFile(`/home/ec2-user/FemTech/build/examples/ex5/${user_id}-${timestamp}.png`, function (err, headBuffer) {
-        if (err) {
-            cb(err,'');
-        }
-        else {
-            params.Key = user_id + "/profile/simulation/" + timestamp + ".png";
-            params.Body = headBuffer;
-            // Call S3 Upload
-            s3.upload(params, (err, data) => {
-                if (err) {
-                    cb(err,'');
-                }
-                else {
-                    cb('',data);
-                }
-            });
-
-        }
-    })
-
-}
-
-
-function uploadGeneratedSelfieImage(obj,cb){
-
-
-    var uploadParams = {
-        Bucket: config.usersbucket,
-        Key: '', // pass key
-        Body: null, // pass file body
-    };
-
-    const params = uploadParams;
-
-    fs.readFile(`./avatars/${obj.user_cognito_id}/head/${obj.file_name}.png`, function (err, headBuffer) {
-        if (err) {
-            cb(err,'');
-        }
-        else {
-            params.Key = `${obj.user_cognito_id}/profile/image/${obj.file_name}.png`;
-            params.Body = headBuffer;
-            // Call S3 Upload
-            s3.upload(params, (err, data) => {
-                if (err) {
-                    cb(err,'');
-                }
-                else {
-                    cb('',data);
-                }
-            });
-
-        }
-    })
-
-}
-
-function generateSimulationFile(user_id){
-    return new Promise((resolve,reject)=>{
-        // 1. Do Simulation
-        // 2. Post Process Simulation
-        // 3. Store the file in DynamoDB
-
-        // Doing Simulation on generic brain.inp file
-        var cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 input.json`
-        console.log(cmd);
-        executeShellCommands(cmd).then((data)=>{
-
-            // Doing Post Processing on simulation
-            var timestamp = Date.now();
-
-            cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${user_id}-${timestamp}.png`;
+            // Doing Simulation on generic brain.inp file
+            var cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 input.json`
             console.log(cmd);
             executeShellCommands(cmd).then((data)=>{
-                uploadSimulationFile(user_id,timestamp,(err,data)=>{
-                    if(err){
-                        console.log(err);
-                        reject(err);
-                    }
-                    else{
 
-                        resolve(data);
+                // Doing Post Processing on simulation
+                var timestamp = Date.now();
 
-                    }
+                cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${user_id}-${timestamp}.png`;
+                console.log(cmd);
+                executeShellCommands(cmd).then((data)=>{
+                    uploadSimulationFile(user_id,timestamp,(err,data)=>{
+                        if(err){
+                            console.log(err);
+                            reject(err);
+                        }
+                        else{
+
+                            resolve(data);
+
+                        }
+                    })
+
+                })
+                .catch((error)=>{
+                    console.log(err);
+                    reject(error);
                 })
 
-            })
-            .catch((error)=>{
+            }).catch((error)=>{
                 console.log(err);
                 reject(error);
+
             })
 
-        }).catch((error)=>{
-            console.log(err);
-            reject(error);
-
         })
 
-    })
 
-
-}
+    }
 
 
 
 
 
-function generateINP(user_id){
-    return new Promise((resolve,reject)=>{
-        // 1. Get Uploaded model list from user
-        // 2. Generate SignedURL of the image
-        // 3. Pass the signedURL to download the zip file
-        // 4. Generate the INF File
-        // 5. Store the INF File in /radio_basis_function/inf file
-        getUploadedModelFileList(user_id,(err,list)=>{
-            if(err){
-                reject(err);
-            }
-            else{
-                // Fetches the latest Model
-                var latestModel = list.reduce(function (oldest, latest_model) {
-                    return oldest.LastModified > latest_model.LastModified ? oldest : latest_model;
-                }, {});
-
-                // Getting the model key
-                var model_key ;
-                if (list.length != 0) {
-                    model_key = latestModel.Key;
+    function generateINP(user_id, obj = null){
+        return new Promise((resolve,reject)=>{
+            // 1. Get Uploaded model list from user
+            // 2. Generate SignedURL of the image
+            // 3. Pass the signedURL to download the zip file
+            // 4. Generate the INF File
+            // 5. Store the INF File in /radio_basis_function/inf file
+            getUploadedModelFileList(user_id,(err,list)=>{
+                if(err){
+                    reject(err);
                 }
-                else {
-                    model_key = user_id + "/profile/model/" + user_id;
-                }
-                // Generate SignedURL of the image
-                getFileSignedUrl(model_key,(err, url)=> {
-                    if(err){
-                        reject(err);
+                else{
+                    // Fetches the latest Model
+                    var latestModel = list.reduce(function (oldest, latest_model) {
+                        return oldest.LastModified > latest_model.LastModified ? oldest : latest_model;
+                    }, {});
+
+                    // Getting the model key
+                    var model_key ;
+                    if (list.length != 0) {
+                        model_key = latestModel.Key;
                     }
-                    else{
-                        // Download file
-                        var timestamp = Date.now();
-                        var zipFileName = timestamp + ".zip";
-                        var options = {
-                            directory: `../users_data/${user_id}/model/`,
-                            filename: zipFileName
+                    else {
+                        model_key = user_id + "/profile/model/" + user_id;
+                    }
+                    // Generate SignedURL of the image
+                    getFileSignedUrl(model_key,(err, url)=> {
+                        if(err){
+                            reject(err);
                         }
-                        download(url, options, function(err){
-                            if (err){
-                                reject(err);
+                        else{
+                            // Download file
+                            var timestamp = Date.now();
+                            var zipFileName = timestamp + ".zip";
+                            var options = {
+                                directory: `../users_data/${user_id}/model/`,
+                                filename: zipFileName
                             }
-                            else{
-                                console.log(`python3 ${__dirname}/../PyGeM/tutorials/RBFfinal.py`);
-                                executeShellCommands(`python3 ${__dirname}/../PyGeM/tutorials/RBFfinal.py`).then((d)=>{
+                            download(url, options, function(err){
+                                if (err){
+                                    reject(err);
+                                }
+                                else{
+                                    console.log(`python3 ${__dirname}/../PyGeM/tutorials/RBFfinal.py`);
+                                    executeShellCommands(`python3 ${__dirname}/../PyGeM/tutorials/RBFfinal.py`).then((d)=>{
 
-                                    var cmd = `mkdir -p ../users_data/${user_id}/rbf/ ; ../MergePolyData/build/MergePolyData -in ./brain.vtk -out ../users_data/${user_id}/rbf/brain_morphed.vtk -abaqus ; mv ../users_data/${user_id}/rbf/brain_morphed.inp ../users_data/${user_id}/rbf/${timestamp}.inp ; mv ../users_data/${user_id}/rbf/brain_morphed.vtk ../users_data/${user_id}/rbf/${timestamp}.vtk;`
-                                    executeShellCommands(cmd).then((d)=>{
+                                        var cmd = `mkdir -p ../users_data/${user_id}/rbf/ ; ../MergePolyData/build/MergePolyData -in ./brain.vtk -out ../users_data/${user_id}/rbf/${obj.file_name}.vtk -abaqus ;`
+                                        executeShellCommands(cmd)
+                                        .then((d)=>{
 
-
-                                        uploadINPFile(user_id,timestamp,(err,data)=>{
-
-                                            if(err){
-                                                reject(err);
-
-                                            }
-                                            else{
-                                                uploadVTKFile(user_id, timestamp, (err, data)=>{
-
-                                                    if(err){
-
-                                                        reject(err);
-                                                    }
-                                                    else{
-                                                        resolve(data);
-                                                    }
-                                                })
-                                            }
-
-
+                                            return generateMorphedVTK(obj);
                                         })
+                                        .then(d => {
+                                            return generateCentroidLookUpTable(obj);
+                                        })
+                                        .then(d => {
+                                            return uploadCentroidLookUpFile(obj)
+                                        })
+                                        .then(d => {
+                                            uploadINPFile(user_id,obj.file_name,(err,data)=>{
 
+                                                if(err){
+                                                    reject(err);
 
+                                                }
+                                                else{
+                                                    uploadVTKFile(user_id, obj.file_name, (err, data)=>{
+
+                                                        if(err){
+
+                                                            reject(err);
+                                                        }
+                                                        else{
+                                                            resolve(data);
+                                                        }
+                                                    })
+                                                }
+                                            })
+                                        })
+                                        .catch((err)=>{
+                                            reject(err);
+                                        })
                                     }).catch((err)=>{
 
-
-
                                         reject(err);
+                                    });
+                                }
+                            })
+                        }
+                    })
+                }
+            })
 
-                                    })
-                                }).catch((err)=>{
-
-                                    reject(err);
-                                });
-                            }
-                        })
-                    }
-                })
-            }
         })
-
-    })
-}
+    }
 
 
-function updateSelfieAndModelStatusInDB(obj,cb){
-    var userParams = {
-        TableName: "users",
-        Key: {
-            "user_cognito_id": obj.user_cognito_id
-        },
-        UpdateExpression: "set is_selfie_image_uploaded = :selfie_image_uploaded, is_selfie_model_uploaded = :selfie_model_uploaded",
-        ExpressionAttributeValues: {
-            ":selfie_model_uploaded": true,
-            ":selfie_image_uploaded": true,
-        },
-        ReturnValues: "UPDATED_NEW"
-    };
-    docClient.update(userParams, (err, data) => {
-        if (err) {
-            cb(err,'');
-        } else {
-            cb('',data);
-        }
-    })
-
-
-
-}
-
-
-function updateINPFileStatusInDB(obj,cb){
-    var userParams = {
-        TableName: "users",
-        Key: {
-            "user_cognito_id": obj.user_cognito_id
-        },
-        UpdateExpression: "set is_selfie_inp_uploaded = :is_selfie_inp_uploaded",
-        ExpressionAttributeValues: {
-            ":is_selfie_inp_uploaded": true
-
-        },
-        ReturnValues: "UPDATED_NEW"
-    };
-    docClient.update(userParams, (err, data) => {
-        if (err) {
-            cb(err,'');
-        } else {
-            cb('',data);
-        }
-    })
-
-}
-
-
-function updateSimulationFileStatusInDB(obj){
-    return new Promise((resolve,reject)=>{
+    function updateSelfieAndModelStatusInDB(obj,cb){
         var userParams = {
             TableName: "users",
             Key: {
-
                 "user_cognito_id": obj.user_cognito_id
             },
-            UpdateExpression: "set is_selfie_simulation_file_uploaded = :is_selfie_simulation_file_uploaded",
+            UpdateExpression: "set is_selfie_image_uploaded = :selfie_image_uploaded, is_selfie_model_uploaded = :selfie_model_uploaded",
             ExpressionAttributeValues: {
-                ":is_selfie_simulation_file_uploaded" : true
+                ":selfie_model_uploaded": true,
+                ":selfie_image_uploaded": true,
             },
             ReturnValues: "UPDATED_NEW"
         };
         docClient.update(userParams, (err, data) => {
             if (err) {
-                reject(err);
+                cb(err,'');
             } else {
-                resolve(data);
+                cb('',data);
             }
         })
-    });
-
-}
 
 
-function updateIRBFormStatusInDDB(obj,cb){
-    var userParams = {
-        TableName: "users",
-        Key: {
-            "user_cognito_id": obj.user_cognito_id
-        },
-        UpdateExpression: "set is_IRB_complete = :is_IRB_complete",
-        ExpressionAttributeValues: {
-            ":is_IRB_complete" : true
-        },
-        ReturnValues: "UPDATED_NEW"
-    };
-    docClient.update(userParams, (err, data) => {
-        if (err) {
-            cb(err,'');
-        } else {
-            cb('',data);
-        }
-    })
-}
 
-
-function getCumulativeEventPressureData(){
-    var myObject = {
-        message : "success",
-        data : { pressure : [241, 292, 125, 106, 282, 171, 58, 37, 219, 263],
-            time_label : [0,5,10,15,20,25,30,35,40,45],
-            timestamp : Number(Date.now()).toString()
-        }
     }
-    return myObject;
-}
 
-function getCumulativeEventLoadData(){
-    var myObject = {
-        message : "success",
-        data : { load : [{dataset : [198, 69, 109, 139, 73]}
-        ,{dataset : [28, 113, 31, 10, 148]}
-        ,{dataset : [28, 2, 1, 10, 148]}
-        ,{dataset : [182, 3, 16, 97, 240]}
-    ],
 
-    time_label : ["W1","W2","W3","W4","W5"],
-    timestamp : Number(Date.now()).toString()
-}
+    function updateINPFileStatusInDB(obj,cb){
+        var userParams = {
+            TableName: "users",
+            Key: {
+                "user_cognito_id": obj.user_cognito_id
+            },
+            UpdateExpression: "set is_selfie_inp_uploaded = :is_selfie_inp_uploaded",
+            ExpressionAttributeValues: {
+                ":is_selfie_inp_uploaded": true
+
+            },
+            ReturnValues: "UPDATED_NEW"
+        };
+        docClient.update(userParams, (err, data) => {
+            if (err) {
+                cb(err,'');
+            } else {
+                cb('',data);
+            }
+        })
+
+    }
+
+
+    function updateSimulationFileStatusInDB(obj){
+        return new Promise((resolve,reject)=>{
+            var userParams = {
+                TableName: "users",
+                Key: {
+
+                    "user_cognito_id": obj.user_cognito_id
+                },
+                UpdateExpression: "set is_selfie_simulation_file_uploaded = :is_selfie_simulation_file_uploaded",
+                ExpressionAttributeValues: {
+                    ":is_selfie_simulation_file_uploaded" : true
+                },
+                ReturnValues: "UPDATED_NEW"
+            };
+            docClient.update(userParams, (err, data) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(data);
+                }
+            })
+        });
+
+    }
+
+
+    function updateIRBFormStatusInDDB(obj,cb){
+        var userParams = {
+            TableName: "users",
+            Key: {
+                "user_cognito_id": obj.user_cognito_id
+            },
+            UpdateExpression: "set is_IRB_complete = :is_IRB_complete",
+            ExpressionAttributeValues: {
+                ":is_IRB_complete" : true
+            },
+            ReturnValues: "UPDATED_NEW"
+        };
+        docClient.update(userParams, (err, data) => {
+            if (err) {
+                cb(err,'');
+            } else {
+                cb('',data);
+            }
+        })
+    }
+
+
+    function getCumulativeEventPressureData(){
+        var myObject = {
+            message : "success",
+            data : { pressure : [241, 292, 125, 106, 282, 171, 58, 37, 219, 263],
+                time_label : [0,5,10,15,20,25,30,35,40,45],
+                timestamp : Number(Date.now()).toString()
+            }
+        }
+        return myObject;
+    }
+
+    function getCumulativeEventLoadData(){
+        var myObject = {
+            message : "success",
+            data : { load : [{dataset : [198, 69, 109, 139, 73]}
+            ,{dataset : [28, 113, 31, 10, 148]}
+            ,{dataset : [28, 2, 1, 10, 148]}
+            ,{dataset : [182, 3, 16, 97, 240]}
+        ],
+
+        time_label : ["W1","W2","W3","W4","W5"],
+        timestamp : Number(Date.now()).toString()
+    }
 }
 return myObject;
 }
@@ -1163,6 +1165,103 @@ function addTeamToOrganizationList(org, team_name) {
     })
 }
 
+function generateStlFromPly(obj){
+    return new Promise((resolve, reject) =>{
+        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/stl/ ; pvpython ../rbf-brain/extract.py --input ./avatars/${obj.user_cognito_id}/head/model.ply --output ../users_data/${obj.user_cognito_id}/stl/${obj.file_name}.stl`
+        console.log(cmd);
+        executeShellCommands(cmd)
+        .then(d => {
+            console.log("POST CONSOLE OF STL GENERATION",d);
+            resolve(d);
+        })
+        .catch(err => {
+            console.log("ERROR in stl generations <<<<<--------------\n",err);
+            reject(err);
+        })
+    })
+}
+
+function generateParametersFileFromStl(obj){
+    return new Promise((resolve, reject) => {
+        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/parameters/ ; pvpython ../rbf-brain/controlpoints.py --input ../users_data/${obj.user_cognito_id}/stl/${obj.file_name}.stl --output ../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm`
+        console.log(cmd)
+        executeShellCommands(cmd)
+        .then(d => {
+            console.log("POST CONSOLE OF PRM GENERATION",d);
+            resolve(d);
+        })
+        .catch(err => {
+            console.log("ERROR in PRM generations <<<<<--------------\n",err);
+            reject(err);
+        })
+    })
+}
+
+function generateMorphedVTK(obj){
+    return new Promise((resolve, reject) =>{
+        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/morphed_vtk/ ; python3  ../rbf-brain/RBF_coarse.py  --p ../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm --m ../users_data/${obj.user_cognito_id}/rbf/${obj.file_name}.vtk --output ../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk`;
+        console.log(cmd);
+        executeShellCommands(cmd)
+        .then(d => {
+            console.log("MORPHED VTK POST<<<<<--------------\n",d);
+            resolve(d)
+        })
+        .catch(err => {
+            console.log("MORPHED VTK <<<<<--------------\n",err);
+            reject(err);
+        })
+    })
+}
+
+function generateCentroidLookUpTable(obj){
+    return new Promise((resolve, reject) =>{
+        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/centroid_table/ ; pvpython ../rbf-brain/lookuptablegenerator_coarse.py --input ../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk --output ../users_data/${obj.user_cognito_id}/centroid_table/${obj.file_name}.txt`
+        console.log(cmd);
+        executeShellCommands(cmd)
+        .then(d => {
+            console.log("CENTROID CMD POST <<<<<--------------\n",d);
+            resolve(d);
+        })
+        .catch(err => {
+            console.log("CENTROID CMD <<<<<--------------\n",err);
+            reject(err);
+        })
+    })
+}
+
+function uploadCentroidLookUpFile(obj){
+    return new Promise((resolve, reject) =>{
+        var uploadParams = {
+            Bucket: config.usersbucket,
+            Key: '', // pass key
+            Body: null, // pass file body
+        };
+
+        const params = uploadParams;
+
+        fs.readFile(`../users_data/${obj.user_cognito_id}/centroid_table/${obj.file_name}.txt`, function (err, headBuffer) {
+            if (err) {
+                reject(err)
+            }
+            else {
+                params.Key = user_id + "/profile/centroid_table/" + obj.file_name + ".txt";
+                params.Body = headBuffer;
+                // Call S3 Upload
+                s3.upload(params, (err, data) => {
+                    if (err) {
+                        reject(err)
+                    }
+                    else {
+                        resolve(data);
+                    }
+                });
+
+            }
+        })
+
+    })
+}
+
 function getCumulativeAccelerationData(obj){
     return new Promise((resolve,reject)=>{
         let params = {
@@ -1529,28 +1628,28 @@ function updateSimulationImageToDDB(image_id, bucket_name, path, status = "compl
             return resolve({ message : "No Image Simulation ID provided"});
         }
         else{
-// if flag is true it means data array is to be created
-        let params = {
-            TableName: "simulation_images",
-            Key: {
-                "image_id": image_id
-            }
-        };
-        docClient.get(params, function (err, data) {
-            if (err) {
-                reject(err);
-            }
-            else {
-                if (Object.keys(data).length == 0 && data.constructor === Object) {
-                    var dbInsert = {
-                        TableName: "simulation_images",
-                        Item: { image_id : image_id,
+            // if flag is true it means data array is to be created
+            let params = {
+                TableName: "simulation_images",
+                Key: {
+                    "image_id": image_id
+                }
+            };
+            docClient.get(params, function (err, data) {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    if (Object.keys(data).length == 0 && data.constructor === Object) {
+                        var dbInsert = {
+                            TableName: "simulation_images",
+                            Item: { image_id : image_id,
                                 bucket_name : bucket_name,
                                 path : path,
                                 status : status,
                                 token : token,
                                 secret : secret
-                                }
+                            }
                         };
                         docClient.put(dbInsert, function (err, data) {
                             if (err) {
@@ -1564,9 +1663,9 @@ function updateSimulationImageToDDB(image_id, bucket_name, path, status = "compl
                     }
                     else {
                         // If Player does not exists in Team
-                            var dbInsert = {
-                                TableName: "simulation_images",
-                                Key: { "image_id" : image_id},
+                        var dbInsert = {
+                            TableName: "simulation_images",
+                            Key: { "image_id" : image_id},
                             UpdateExpression: "set #path = :path,#status = :status",
                             ExpressionAttributeNames: {
                                 "#path": "path",
@@ -1589,213 +1688,204 @@ function updateSimulationImageToDDB(image_id, bucket_name, path, status = "compl
                             }
                         });
 
-                }
-            }
-        });
-
-        }
-        })
-    }
-
-    function addPlayerToTeamInDDB(org, team, player_id) {
-        return new Promise((resolve, reject)=>{
-            // if flag is true it means data array is to be created
-            let params = {
-                TableName: "teams",
-                Key: {
-                    "organization": org,
-                    "team_name" : team
-                }
-            };
-            docClient.get(params, function (err, data) {
-                if (err) {
-                    reject(err);
-                }
-                else {
-                    if (Object.keys(data).length == 0 && data.constructor === Object) {
-                        var dbInsert = {
-                            TableName: "teams",
-                            Item: { organization : org,
-                                team_name : team,
-                                player_list : [player_id] }
-                            };
-                            docClient.put(dbInsert, function (err, data) {
-                                if (err) {
-                                    console.log(err);
-                                    reject(err);
-
-                                } else {
-                                    resolve(data)
-                                }
-                            });
-                        }
-                        else {
-                            // If Player does not exists in Team
-                            if(data.Item.player_list.indexOf(player_id) <= -1){
-                                var dbInsert = {
-                                    TableName: "teams",
-                                    Key: { "organization" : org,
-                                    "team_name" : team
-                                },
-                                UpdateExpression: "set #list = list_append(#list, :newItem)",
-                                ExpressionAttributeNames: {
-                                    "#list": "player_list"
-                                },
-                                ExpressionAttributeValues: {
-                                    ":newItem": [player_id]
-                                },
-                                ReturnValues: "UPDATED_NEW"
-                            }
-
-                            docClient.update(dbInsert, function (err, data) {
-                                if (err) {
-                                    console.log("ERROR WHILE CREATING DATA",err);
-                                    reject(err);
-
-                                } else {
-                                    resolve(data)
-                                }
-                            });
-                        }
-                        else{
-                            resolve("PLAYER ALREADY EXISTS IN TEAM");
-                        }
-
                     }
                 }
             });
 
-
-        })
-    }
-
-    function base64_encode(file) {
-
-        // read binary data
-        let bitmap = fs.readFileSync(file);
-
-        // convert binary data to base64 encoded string
-        return new Buffer(bitmap).toString('base64');
-    }
-
-    // Clearing the cookies
-    app.get(`/`, (req, res) => {
-        res.send("TesT SERVICE HERE");
+        }
     })
+}
 
-    app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
-
-        // The file content will be in 'upload_file' parameter
-        let buffer = Buffer.from(req.body.upload_file, 'base64');
-
-        // TODO : upload file in s3 ( Which bucket ? )
-
-        // Converting xlsx file data into JSON
-        convertXLSXDataToJSON(buffer, function(items) {
-
-
-            items.map((element) => {
-                return element.organization = "PSU";
-            });
-
-            const new_items_array = _.map(items, o => _.extend({organization: "PSU"}, o));
-            for(var i = 0 ; i < new_items_array.length ; i++){
-                var _temp = new_items_array[i] ;
-                _temp["image_id"] = shortid.generate() ;
-                new_items_array[i] = _temp ;
+function addPlayerToTeamInDDB(org, team, player_id) {
+    return new Promise((resolve, reject)=>{
+        // if flag is true it means data array is to be created
+        let params = {
+            TableName: "teams",
+            Key: {
+                "organization": org,
+                "team_name" : team
             }
+        };
+        docClient.get(params, function (err, data) {
+            if (err) {
+                reject(err);
+            }
+            else {
+                if (Object.keys(data).length == 0 && data.constructor === Object) {
+                    var dbInsert = {
+                        TableName: "teams",
+                        Item: { organization : org,
+                            team_name : team,
+                            player_list : [player_id] }
+                        };
+                        docClient.put(dbInsert, function (err, data) {
+                            if (err) {
+                                console.log(err);
+                                reject(err);
 
-            storeSensorData(new_items_array)
-            .then(flag => {
+                            } else {
+                                resolve(data)
+                            }
+                        });
+                    }
+                    else {
+                        // If Player does not exists in Team
+                        if(data.Item.player_list.indexOf(player_id) <= -1){
+                            var dbInsert = {
+                                TableName: "teams",
+                                Key: { "organization" : org,
+                                "team_name" : team
+                            },
+                            UpdateExpression: "set #list = list_append(#list, :newItem)",
+                            ExpressionAttributeNames: {
+                                "#list": "player_list"
+                            },
+                            ExpressionAttributeValues: {
+                                ":newItem": [player_id]
+                            },
+                            ReturnValues: "UPDATED_NEW"
+                        }
 
-                var players = items.map(function (player) {
-                    return {    player_id : player.player_id.split("$")[0],
-                    team : player.team,
-                    organization : player.organization,
+                        docClient.update(dbInsert, function (err, data) {
+                            if (err) {
+                                console.log("ERROR WHILE CREATING DATA",err);
+                                reject(err);
+
+                            } else {
+                                resolve(data)
+                            }
+                        });
+                    }
+                    else{
+                        resolve("PLAYER ALREADY EXISTS IN TEAM");
+                    }
+
                 }
-            });
-
-            var unique_players = _.uniq(players, 'player_id');
-            const result = [];
-            const map = new Map();
-            var simulation_result_urls = [];
-            for (const item of players) {
-                if(!map.has(item.player_id)){
-                    map.set(item.player_id, true);    // set any value to Map
-                    result.push(item);
-                }
             }
-            if(result.length == 0){
-                res.send({
-                    message : "success"
-                })
+        });
+
+
+    })
+}
+
+function base64_encode(file) {
+
+    // read binary data
+    let bitmap = fs.readFileSync(file);
+
+    // convert binary data to base64 encoded string
+    return new Buffer(bitmap).toString('base64');
+}
+
+// Clearing the cookies
+app.get(`/`, (req, res) => {
+    res.send("TesT SERVICE HERE");
+})
+
+app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
+
+    // The file content will be in 'upload_file' parameter
+    let buffer = Buffer.from(req.body.upload_file, 'base64');
+
+    // TODO : upload file in s3 ( Which bucket ? )
+
+    // Converting xlsx file data into JSON
+    convertXLSXDataToJSON(buffer, function(items) {
+
+
+        items.map((element) => {
+            return element.organization = "PSU";
+        });
+
+        const new_items_array = _.map(items, o => _.extend({organization: "PSU"}, o));
+        for(var i = 0 ; i < new_items_array.length ; i++){
+            var _temp = new_items_array[i] ;
+            _temp["image_id"] = shortid.generate() ;
+            new_items_array[i] = _temp ;
+        }
+
+        storeSensorData(new_items_array)
+        .then(flag => {
+
+            var players = items.map(function (player) {
+                return {    player_id : player.player_id.split("$")[0],
+                team : player.team,
+                organization : player.organization,
             }
-            else{
-                // Run simulation here and send data
-                // {
-                //     "player_id" : "STRING",
-                //     "team" : "STRING",
-                //     "organization" : "STRING"
-                // }
-                var counter = 0 ;
-                console.log("UNIQUE PLAYERS ++++++++++++++ ",result);
+        });
 
-                for(var i =0 ; i< result.length ; i++){
-                    var temp = result[i];
-                    console.log("SIMULATION RUNNING FOR ,",temp);
+        var unique_players = _.uniq(players, 'player_id');
+        const result = [];
+        const map = new Map();
+        var simulation_result_urls = [];
+        for (const item of players) {
+            if(!map.has(item.player_id)){
+                map.set(item.player_id, true);    // set any value to Map
+                result.push(item);
+            }
+        }
+        if(result.length == 0){
+            res.send({
+                message : "success"
+            })
+        }
+        else{
+            // Run simulation here and send data
+            // {
+            //     "player_id" : "STRING",
+            //     "team" : "STRING",
+            //     "organization" : "STRING"
+            // }
+            var counter = 0 ;
+            console.log("UNIQUE PLAYERS ++++++++++++++ ",result);
 
-                    addPlayerToTeamInDDB(temp.organization, temp.team, temp.player_id)
-                    .then(d => {
-                        // Generate simulation for player
-                        getCumulativeSensorData(temp)
-                        .then(player_data_array => {
-                          console.log("Player records fetched are :", player_data_array);
+            for(var i =0 ; i< result.length ; i++){
+                var temp = result[i];
+                console.log("SIMULATION RUNNING FOR ,",temp);
 
-                            if(player_data_array.length == 0 ){
+                addPlayerToTeamInDDB(temp.organization, temp.team, temp.player_id)
+                .then(d => {
+                    // Generate simulation for player
+                    getCumulativeSensorData(temp)
+                    .then(player_data_array => {
+                        console.log("Player records fetched are :", player_data_array);
 
+                        if(player_data_array.length == 0 ){
+
+                            counter++;
+                            if(counter == result.length){
+                                res.send({
+                                    message : "success",
+                                    image_url : simulation_result_urls
+                                })
+                            }
+                        }
+                        else{
+                            generateSimulationForPlayers(player_data_array)
+                            .then(urls => {
+                                console.log(simulation_result_urls);
+                                console.log("URLS RECEIVED IS",urls);
+                                simulation_result_urls.push(urls)
                                 counter++;
                                 if(counter == result.length){
                                     res.send({
-                                                message : "success",
-                                                image_url : simulation_result_urls
-                                            })
-                                }
-                            }
-                            else{
-                                generateSimulationForPlayers(player_data_array)
-                                .then(urls => {
-                                        console.log(simulation_result_urls);
-                                        console.log("URLS RECEIVED IS",urls);
-                                        simulation_result_urls.push(urls)
-                                        counter++;
-                                        if(counter == result.length){
-                                            res.send({
-                                                        message : "success",
-                                                        image_url : _.spread(_.union)(simulation_result_urls)
-                                                    })
-                                        }
-                                })
-                                .catch(err => {
-                                    counter = result.length ;
-                                    i = result.length ;
-                                    res.send({
-                                        message : "failure",
-                                        error : err
+                                        message : "success",
+                                        image_url : _.spread(_.union)(simulation_result_urls)
                                     })
-                                })
-                            }
-                        }).
-                        catch(err => {
-                            console.log('ERROR');
-                            counter = result.length ;
-                            i = result.length ;
-                            res.send({
-                                message : "failure",
-                                error : err
+                                }
                             })
-                        })
-                    })
-                    .catch(err => {
+                            .catch(err => {
+                                counter = result.length ;
+                                i = result.length ;
+                                res.send({
+                                    message : "failure",
+                                    error : err
+                                })
+                            })
+                        }
+                    }).
+                    catch(err => {
+                        console.log('ERROR');
                         counter = result.length ;
                         i = result.length ;
                         res.send({
@@ -1803,10 +1893,19 @@ function updateSimulationImageToDDB(image_id, bucket_name, path, status = "compl
                             error : err
                         })
                     })
-                }
+                })
+                .catch(err => {
+                    counter = result.length ;
+                    i = result.length ;
+                    res.send({
+                        message : "failure",
+                        error : err
+                    })
+                })
             }
-        })
+        }
     })
+})
 })
 
 
@@ -1965,6 +2064,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
     })
 
 
+
     app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(req, res){
 
         // Get URL Image in input
@@ -1973,7 +2073,11 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
         // 1.1 Set update in DB that selfie model is uploaded
         // 2. Genearte 3d Profile Image from PLY file of 3D Avatar
         // 2.1 Set Update in DB that 3d Profile Png image generated is uploaded
+        // - Generate STL file from PLY File -> output -> timestamp.stl | Call pvpython extract.py
+        // - Generate Parameters file from PLY File -> output -> timestamp.stl | Call pvpython controlpoints.py
         // 3. Generate INP File
+        // - Generate the VTK
+        // - Generate Morphed VTK file | call python3  RBF_coarse.py
         // 3.1 Set update in DB that inp file is uploaded
         // 4. Do simulation & generate PNG file of it
         // 4.1 Set Update in DB that simulation file is generated
@@ -2017,52 +2121,65 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
                                     }
                                     else{
-                                        // Generate INP File
-                                        generateINP(req.body.user_cognito_id)
-                                        .then((d)=>{
+                                        generateStlFromPly(req.body)
+                                        .then(d => {
+                                            return generateParametersFileFromStl(req.body)
+                                        })
+                                        .then(d => {
+                                            // Generate INP File
+                                            generateINP(req.body.user_cognito_id, req.body)
+                                            .then((d)=>{
 
-                                            // Update Status of INP File generation
-                                            updateINPFileStatusInDB(req.body, function(err,data){
+                                                // Update Status of INP File generation
+                                                updateINPFileStatusInDB(req.body, function(err,data){
 
-                                                if(err){
-                                                    res.send({
-                                                        message : "failure",
-                                                        error : er
-                                                    })
+                                                    if(err){
+                                                        res.send({
+                                                            message : "failure",
+                                                            error : er
+                                                        })
 
-                                                }
-                                                else{
-                                                    // Create Simulation File
+                                                    }
+                                                    else{
+                                                        // Create Simulation File
 
-                                                    //generateSimulationFile(req.body.user_cognito_id)
-                                                    //.then((data)=>{
+                                                        //generateSimulationFile(req.body.user_cognito_id)
+                                                        //.then((data)=>{
 
-                                                    // Update status of simulation file
-                                                    //  return updateSimulationFileStatusInDB(req.body)
+                                                        // Update status of simulation file
+                                                        //  return updateSimulationFileStatusInDB(req.body)
 
-                                                    //}).then((data) => {
+                                                        //}).then((data) => {
 
-                                                    res.send({
-                                                        message : "success"
-                                                    })
+                                                        res.send({
+                                                            message : "success"
+                                                        })
 
-                                                    //}).catch((err)=>{
-                                                    //   res.send({
-                                                    //       message : "failure",
-                                                    //       error : err
-                                                    //   });
-                                                    // })
-                                                }
+                                                        //}).catch((err)=>{
+                                                        //   res.send({
+                                                        //       message : "failure",
+                                                        //       error : err
+                                                        //   });
+                                                        // })
+                                                    }
+                                                })
+
+
+                                            }).catch((err)=>{
+                                                console.log(err);
+                                                res.send({
+                                                    message : "failure",
+                                                    error : err
+                                                })
                                             })
-
-
-                                        }).catch((err)=>{
-                                            console.log(err);
+                                        })
+                                        .catch(err => {
                                             res.send({
                                                 message : "failure",
                                                 error : err
                                             })
                                         })
+
                                     }
                                 })
                             }
@@ -2476,52 +2593,52 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                     var token_secret = shortid.generate();
                     generateJWTokenWithNoExpiry({ image_id : _temp_player.image_id }, token_secret)
                     .then( image_token => {
-                         
-                  updateSimulationImageToDDB(_temp_player.image_id, config.usersbucket, "null", "pending", image_token, token_secret)
-                    .then(value => {
-                        console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
 
-                      simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${image_token}/${_temp_player.image_id}`)
-                        setTimeout(generateSimulationForPlayer, simulation_timer, _temp_player, index, _temp_player.image_id, image_token, token_secret);                           
-//                        generateSimulationForPlayer(_temp_player, index, _temp_player.image_id)
-//                        .then(value =>{
-//                                console.log(value);
-//                        })
-//                      .catch(err => {
-//                                console.log(err);
-//                      })
+                        updateSimulationImageToDDB(_temp_player.image_id, config.usersbucket, "null", "pending", image_token, token_secret)
+                        .then(value => {
+                            console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
+
+                            simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${image_token}/${_temp_player.image_id}`)
+                            setTimeout(generateSimulationForPlayer, simulation_timer, _temp_player, index, _temp_player.image_id, image_token, token_secret);
+                            //                        generateSimulationForPlayer(_temp_player, index, _temp_player.image_id)
+                            //                        .then(value =>{
+                            //                                console.log(value);
+                            //                        })
+                            //                      .catch(err => {
+                            //                                console.log(err);
+                            //                      })
 
                             counter++;
 
-                        if(counter == player_data_array.length){
-                            resolve(simulation_result_urls)
-                        }
-                        // .then(d => {
-                        //     console.log('COUNTER IS ', counter +1 );
-                        //     inner_counter++;
-                        //     image_array.push(d.base64)
-                        //     console.log('generateSimulationForPlayer' ,d);
-                        //     if(counter == player_data_array.length){
-                        //         res.send({
-                        //             message : "success",
-                        //             images : image_array
-                        //         })
-                        //     }
-                        // })
-                        // .catch( err => {
-                        //     console.log('ERROR IN GENERATE SIMULATION IMAGE ', err);
-                        // })
-                    })
-                    .catch(err => {
-                      console.log("In error", err);
-                        counter = result.length ;
-                        j = player_data_array.length ;
-                        reject(err)
-                    })
+                            if(counter == player_data_array.length){
+                                resolve(simulation_result_urls)
+                            }
+                            // .then(d => {
+                            //     console.log('COUNTER IS ', counter +1 );
+                            //     inner_counter++;
+                            //     image_array.push(d.base64)
+                            //     console.log('generateSimulationForPlayer' ,d);
+                            //     if(counter == player_data_array.length){
+                            //         res.send({
+                            //             message : "success",
+                            //             images : image_array
+                            //         })
+                            //     }
+                            // })
+                            // .catch( err => {
+                            //     console.log('ERROR IN GENERATE SIMULATION IMAGE ', err);
+                            // })
+                        })
+                        .catch(err => {
+                            console.log("In error", err);
+                            counter = result.length ;
+                            j = player_data_array.length ;
+                            reject(err)
+                        })
                     })
                     .catch( err => {
-                      
-                      console.log("In error", err);
+
+                        console.log("In error", err);
                         counter = result.length ;
                         j = player_data_array.length ;
                         reject(err)
@@ -2773,4 +2890,4 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
         const server = app.listen(port, function () {
             console.log('Magic happens on ' + port);
         });
-}
+    }
