@@ -105,8 +105,8 @@ if (cluster.isMaster) {
     const subject_signature  = fs.readFileSync("data/base64")
 
     var config_env = config ;
-    // var config = require('./config/configuration_keys.json');
-    // var config_env = config;
+     var config = require('./config/configuration_keys.json');
+     var config_env = config;
 
     //AWS.config.loadFromPath('./config/configuration_keys.json');
     const BUCKET_NAME = config_env.usersbucket;
@@ -355,7 +355,6 @@ if (cluster.isMaster) {
                 //   console.log(err);
                 cb(err, "");
             }
-            console.log(data);
             cb("", data.Contents);
         });
 
@@ -399,7 +398,7 @@ if (cluster.isMaster) {
 
         const params = uploadParams;
 
-        fs.readFile(`../users_data/${user_id}/rbf/${timestamp}.inp`, function (err, headBuffer) {
+        fs.readFile(`./../users_data/${user_id}/rbf/${timestamp}.inp`, function (err, headBuffer) {
             if (err) {
                 cb(err,'');
             }
@@ -617,8 +616,8 @@ if (cluster.isMaster) {
                                 else{
                                      generateMorphedVTK(obj)
                                     .then((d)=>{
-
-                                        var cmd = `mkdir -p ../users_data/${user_id}/rbf/ ; ../MergePolyData/build/MergePolyData -in ../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ../users_data/${user_id}/rbf/${obj.file_name}.vtk -abaqus ;`
+                                        
+                                        var cmd = `mkdir -p ./../users_data/${user_id}/rbf/ ; ./../MergePolyData/build/MergePolyData -in ./../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ./../users_data/${user_id}/rbf/${obj.file_name}.vtk -abaqus ;`
                                         executeShellCommands(cmd)
                                         .then(d => {
                                             return generateCentroidLookUpTable(obj);
@@ -1163,7 +1162,7 @@ function addTeamToOrganizationList(org, team_name) {
 
 function generateStlFromPly(obj){
     return new Promise((resolve, reject) =>{
-        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/stl/ ; pvpython ../rbf-brain/extract.py --input ./avatars/${obj.user_cognito_id}/head/model.ply --output ../users_data/${obj.user_cognito_id}/stl/${obj.file_name}.stl`
+        var cmd = `mkdir -p ./../users_data/${obj.user_cognito_id}/stl/ && pvpython ./../rbf-brain/extract.py --input ./avatars/${obj.user_cognito_id}/face/model.ply --output ./../users_data/${obj.user_cognito_id}/stl/${obj.file_name}.stl`
         console.log(cmd);
         executeShellCommands(cmd)
         .then(d => {
@@ -1179,7 +1178,8 @@ function generateStlFromPly(obj){
 
 function generateParametersFileFromStl(obj){
     return new Promise((resolve, reject) => {
-        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/parameters/ ; pvpython ../rbf-brain/controlpoints.py --input ../users_data/${obj.user_cognito_id}/stl/${obj.file_name}.stl --output ../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm`
+      console.log("THI IS PRESENT WORKING DIRECTORY ", __dirname);
+        var cmd = `mkdir -p ./../users_data/${obj.user_cognito_id}/parameters/ && pvpython ./../rbf-brain/controlpoints.py --input ./../users_data/${obj.user_cognito_id}/stl/${obj.file_name}.stl --output ./../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm`
         console.log(cmd)
         executeShellCommands(cmd)
         .then(d => {
@@ -1195,7 +1195,7 @@ function generateParametersFileFromStl(obj){
 
 function generateMorphedVTK(obj){
     return new Promise((resolve, reject) =>{
-        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/morphed_vtk/ ; python3  ../rbf-brain/RBF_coarse.py  --p ../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm --m ../rbf-brain/coarse_mesh.vtk --output ../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk`;
+        var cmd = `mkdir -p ./../users_data/${obj.user_cognito_id}/morphed_vtk/ && python3  ./../rbf-brain/RBF_coarse.py  --p ./../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm --m ./../rbf-brain/coarse_mesh.vtk --output ./../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk`;
         console.log(cmd);
         executeShellCommands(cmd)
         .then(d => {
@@ -1211,7 +1211,7 @@ function generateMorphedVTK(obj){
 
 function generateCentroidLookUpTable(obj){
     return new Promise((resolve, reject) =>{
-        var cmd = `mkdir -p ../users_data/${obj.user_cognito_id}/centroid_table/ ; pvpython ../rbf-brain/lookuptablegenerator_coarse.py --centroid ../rbf-brain/centroid_coarse.txt --input ../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk --output ../users_data/${obj.user_cognito_id}/centroid_table/${obj.file_name}.txt`
+        var cmd = `mkdir -p ./../users_data/${obj.user_cognito_id}/centroid_table/ && pvpython ./../rbf-brain/lookuptablegenerator_coarse.py --centroid ./../rbf-brain/centroid_coarse.txt --input ./../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk --output ./../users_data/${obj.user_cognito_id}/centroid_table/${obj.file_name}.txt`
         console.log(cmd);
         executeShellCommands(cmd)
         .then(d => {
@@ -1235,7 +1235,7 @@ function uploadCentroidLookUpFile(obj){
 
         const params = uploadParams;
 
-        fs.readFile(`../users_data/${obj.user_cognito_id}/centroid_table/${obj.file_name}.txt`, function (err, headBuffer) {
+        fs.readFile(`./../users_data/${obj.user_cognito_id}/centroid_table/${obj.file_name}.txt`, function (err, headBuffer) {
             if (err) {
                 reject(err)
             }
@@ -1245,9 +1245,11 @@ function uploadCentroidLookUpFile(obj){
                 // Call S3 Upload
                 s3.upload(params, (err, data) => {
                     if (err) {
+                      console.log("FILE UPLOAD CENTROID",err);
                         reject(err)
                     }
                     else {
+                      
                         resolve(data);
                     }
                 });
@@ -1260,8 +1262,8 @@ function uploadCentroidLookUpFile(obj){
 
 function cleanUp(obj){
 return new Promise((resolve, reject) =>{
-
-  executeShellCommands(`rm -fr ../users_data/${obj.user_cognito_id}/ ; rm -rf ./avatars/${obj.user_cognito_id}/ ; rm -f ./avatars/${obj.user_cognito_id}.zip;`)
+  console.log("Clean is called");
+  executeShellCommands(`rm -fr ./../users_data/${obj.user_cognito_id}/ ; rm -rf ./avatars/${obj.user_cognito_id}/ ; rm -f ./avatars/${obj.user_cognito_id}.zip;`)
   .then( d =>{  
       resolve(d);
   })
