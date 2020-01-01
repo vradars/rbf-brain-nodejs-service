@@ -105,8 +105,8 @@ if (cluster.isMaster) {
     const subject_signature  = fs.readFileSync("data/base64")
 
     var config_env = config ;
-     var config = require('./config/configuration_keys.json');
-     var config_env = config;
+    //var config = require('./config/configuration_keys.json');
+    //var config_env = config;
 
     //AWS.config.loadFromPath('./config/configuration_keys.json');
     const BUCKET_NAME = config_env.usersbucket;
@@ -2680,11 +2680,11 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                         "position": ""
                     },
                     "simulation": {
-                        "mesh": "brain.inp",
+                        "mesh": "coarse_brain.inp",
                         "linear-acceleration": [0.0, 0.0, 0.0],
                         "angular-acceleration": 0.0,
                         "time-peak-acceleration": 1.0e-5,
-                        "maximum-time": 2.0e-5,
+                        "maximum-time": 1.0e-4,
                         "impact-point": ""
                     }
                 }
@@ -2720,6 +2720,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
                     // EXECUTE MERGEPOLYDATA PNG
                     let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${ p_id + obj.date.split("/").join("-") + "_" + index }.png`
+                  console.log(cmd);
                     return executeShellCommands(cmd)
 
                 })
