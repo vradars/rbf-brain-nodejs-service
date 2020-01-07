@@ -49,7 +49,7 @@
     font-size: 1.2em !important;
 }
 .center-text {
-text-align : center 
+text-align : center
 }
 
     </style>
@@ -229,7 +229,8 @@ text-align : center
                                                 be made to keep the personal information in your research record private. However, absolute
                                                 confidentiality cannot be guaranteed.
                                             </p>
-                                            <p>
+                                            <br>
+                                            <p >
                                                 Note that when data is collected from the sensor, the data will originally be stored on the sensor
                                                 company servers before being transferred to Penn State. Furthermore, this data may also be used in
                                                 accordance with their internal privacy policies unrelated to research purposes.
@@ -332,13 +333,13 @@ text-align : center
                                             <br>
                                             <br>
                                             <div>
-                                                Signature of Subject 
-                                                <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.user_signature%> ></div><hr>
+                                                Signature of Person Explaining Research
+                                                <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.subject_signature%> ></div><hr>
                                             </div>
                                             <div>
-                                       
+
                                               <div >
-                                                Subject Name : <%-user_data.first_name%> <%-user_data.last_name%></div>
+                                                Subject Name : Reuben Kraft</div>
                                               <div >
                                                 Date : <%-user_data.date%>
                                               </div>
@@ -359,13 +360,13 @@ text-align : center
 
                                                 </p>
                                                 <div>
-                                                Signature of Person Giving Informed Consent  
-                                                <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.subject_signature%> ></div><hr>
+                                                Signature of Person Giving Informed Consent
+                                                <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.user_signature%> ></div><hr>
                                             </div>
                                             <div>
-                                       
+
                                               <div >
-                                                Subject Name : Reuben Kraft</div>
+                                                Subject Name : <%-user_data.first_name%> <%-user_data.last_name%></div>
                                               <div >
                                                 Date : <%-user_data.date%>
                                               </div>
@@ -385,21 +386,21 @@ text-align : center
                                                 <br>
                                                 <div>
                                                 <div >
-                                                   
-                                                    Signature of Subject 
+
+                                                    Signature of Subject
                                                     </div>
                                                     <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.user_signature%> ></div>
                                                     <hr>
-                                                    
+
                                                 </div>
-                                                
+
                                                 <div>
-                                                  
+
                                                   <div >
-                                                   
+
                                                     Subject Name : <%-user_data.first_name%> <%-user_data.last_name%>
                                                     </div>
-                                                  <div >                                          
+                                                  <div >
                                                     Date : <%-user_data.date%>
                                                     </div>
                                                 </div>
@@ -417,7 +418,7 @@ text-align : center
                                                     <div>
                                                         Signature of Guardian
                                                         <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.guardian_signature%> ></div><hr>
-                                                        
+
                                                     </div>
                                                 <% } else{ %>
                                                     <div></div>
@@ -426,21 +427,21 @@ text-align : center
 
                                                 <div>
                                                 <% if(user_data.guardian_first_name){ %>
-                                                    
-                                                    
+
+
                                                   <div>
                                                     Name : <%-user_data.guardian_first_name%> <%-user_data.guardian_last_name%></div>
                                                     <div >
-                                                    Date : <%-user_data.date%> 
+                                                    Date : <%-user_data.date%>
                                                   </div>
-                                                  
+
                                                 <% } else{ %>
                                                     <div></div>
                                                 <% } %>
-                                                
-                                                  
-                                                  
-                                                  
+
+
+
+
                                                 </div>
                                             </div>
                                             <br>
@@ -469,19 +470,19 @@ text-align : center
                                             <div>
                                                 Signature of Subject
                                                 <div style="border: 2px grey solid;" ><img height="100px" width="100%" src=<%-user_data.user_signature%> ></div><hr>
-                                                
+
                                             </div>
 
 
                                             <div>
-                                                
-                                                
+
+
                                                 <div >
-                                                 
+
                                                   Name : <%-user_data.first_name%> <%-user_data.last_name%>
                                                 </div>
                                                 <div >
-                                                  
+
                                                   Date : <%-user_data.date%>
                                                 </div>
                                             </div>
