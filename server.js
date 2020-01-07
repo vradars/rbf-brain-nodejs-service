@@ -616,7 +616,7 @@ if (cluster.isMaster) {
                                 else{
                                      generateMorphedVTK(obj)
                                     .then((d)=>{
-                                        
+
                                         var cmd = `mkdir -p ./../users_data/${user_id}/rbf/ ; ./../MergePolyData/build/MergePolyData -in ./../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ./../users_data/${user_id}/rbf/${obj.file_name}.vtk -abaqus ;`
                                         executeShellCommands(cmd)
                                         .then(d => {
@@ -1249,7 +1249,7 @@ function uploadCentroidLookUpFile(obj){
                         reject(err)
                     }
                     else {
-                      
+
                         resolve(data);
                     }
                 });
@@ -1264,7 +1264,7 @@ function cleanUp(obj){
 return new Promise((resolve, reject) =>{
   console.log("Clean is called");
   executeShellCommands(`rm -fr ./../users_data/${obj.user_cognito_id}/ ; rm -rf ./avatars/${obj.user_cognito_id}/ ; rm -f ./avatars/${obj.user_cognito_id}.zip;`)
-  .then( d =>{  
+  .then( d =>{
       resolve(d);
   })
   .catch( err =>{
