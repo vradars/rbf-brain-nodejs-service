@@ -2683,8 +2683,8 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                         "mesh": "coarse_brain.inp",
                         "linear-acceleration": [0.0, 0.0, 0.0],
                         "angular-acceleration": 0.0,
-                        "time-peak-acceleration": 1.0e-5,
-                        "maximum-time": 1.0e-4,
+                        "time-peak-acceleration": 2.0e-2,
+                        "maximum-time": 4.0e-2,
                         "impact-point": ""
                     }
                 }
@@ -2711,7 +2711,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                 .then(d =>{
 
                     // EXECUTE THE MPIRUN COMMAND
-                    let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${file_path}${file_name}`
+                    let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 16  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${file_path}${file_name}`
                     console.log(cmd);
                     return executeShellCommands(cmd)
 
