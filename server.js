@@ -528,7 +528,7 @@ if (cluster.isMaster) {
             // 3. Store the file in DynamoDB
 
             // Doing Simulation on generic brain.inp file
-            var cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 2  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 input.json`
+            var cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 16  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 input.json`
             console.log(cmd);
             executeShellCommands(cmd).then((data)=>{
 
