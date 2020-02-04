@@ -99,11 +99,12 @@ if (cluster.isMaster) {
         "userPoolId": process.env.USERPOOLID,
         "ClientId" : process.env.CLIENTID,
         "react_website_url" : process.env.REACTURL,
-        "simulation_result_host_url" : process.env.SIMULATION_RESULT_HOST_URL
+        "simulation_result_host_url" : process.env.SIMULATION_RESULT_HOST_URL,
+        "queueUri" : process.env.QUEUE_URI
     };
 
     const subject_signature  = fs.readFileSync("data/base64")
-
+    
     var config_env = config ;
     //var config = require('./config/configuration_keys.json');
     //var config_env = config;
@@ -121,6 +122,7 @@ if (cluster.isMaster) {
     });
 
     var s3 = new AWS.S3();
+    var sqs = new AWS.SQS();
 
     const docClient = new AWS.DynamoDB.DocumentClient({
         convertEmptyValues: true
@@ -224,7 +226,7 @@ if (cluster.isMaster) {
 
     function generateJWToken(obj,expiry){
         return new Promise((resolve, reject) =>{
-            console.log("THE VALUES IS ", config_env.jwt_secret);
+            console.log('Generating jwt secret');
             jwt.sign(obj, config_env.jwt_secret, { expiresIn: expiry }, (err,token)=> {
                 if(err){
                     reject(err);
@@ -238,7 +240,7 @@ if (cluster.isMaster) {
 
     function generateJWTokenWithNoExpiry(obj, secret){
         return new Promise((resolve, reject) =>{
-            console.log("THE VALUES IS ", config_env.jwt_secret);
+            console.log('Generating jwt secret with no expiry');
             jwt.sign(obj, secret, (err,token)=> {
                 if(err){
                     reject(err);
@@ -1856,14 +1858,12 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
 
             for(var i =0 ; i< result.length ; i++){
                 var temp = result[i];
-                console.log("SIMULATION RUNNING FOR ,",temp);
 
                 addPlayerToTeamInDDB(temp.organization, temp.team, temp.player_id)
                 .then(d => {
                     // Generate simulation for player
                     getCumulativeSensorData(temp)
                     .then(player_data_array => {
-                        console.log("Player records fetched are :", player_data_array);
 
                         if(player_data_array.length == 0 ){
 
@@ -2604,12 +2604,35 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
             })
         })
 
+        function sendSqsMessage(player, index, image_id, image_token, token_secret) {
+          
+
+          var params = {
+            MessageBody: JSON.stringify({
+                "obj" : player,
+                "index" : index,
+                "image_id" : image_id,
+                "image_token" : image_token,
+                "token_secret" : token_secret
+            }),
+            QueueUrl: config_env.queueUri,
+            DelaySeconds: 0
+          };
+
+          sqs.sendMessage(params, function (err, data) {
+            if (err) {
+              console.log('Error while sending message to queue ', err);
+            } // an error occurred
+            else {
+              console.log('Successfully sent message to queue');
+            };
+          });
+        }
+
         function generateSimulationForPlayers(player_data_array){
             return new Promise((resolve, reject) => {
                 var counter = 0 ;
                 var simulation_result_urls = [];
-
-                console.log("DATA _--------------------->>>>>>>>>>>>>>>>>>>>>>>",player_data_array);
 
                 player_data_array.forEach(( player,j ) => {
 
@@ -2624,7 +2647,8 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                             console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
 
                             simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${image_token}/${_temp_player.image_id}`)
-                            setTimeout(generateSimulationForPlayer, simulation_timer, _temp_player, index, _temp_player.image_id, image_token, token_secret);
+                            sendSqsMessage(_temp_player, index, _temp_player.image_id, image_token, token_secret);
+                           // setTimeout(generateSimulationForPlayer, simulation_timer, _temp_player, index, _temp_player.image_id, image_token, token_secret);
                             //                        generateSimulationForPlayer(_temp_player, index, _temp_player.image_id)
                             //                        .then(value =>{
                             //                                console.log(value);
