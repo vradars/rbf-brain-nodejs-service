@@ -101,7 +101,8 @@ if (cluster.isMaster) {
         "react_website_url" : process.env.REACTURL,
         "simulation_result_host_url" : process.env.SIMULATION_RESULT_HOST_URL,
         "jobQueue" : process.env.JOB_QUEUE,
-        "jobDefinition" : process.env.JOB_DEFINITION
+        "jobDefinition" : process.env.JOB_DEFINITION,
+        "simulation_bucket" : process.env.SIMULATION_BUCKET
     };
 
     const subject_signature  = fs.readFileSync("data/base64")
@@ -241,18 +242,18 @@ if (cluster.isMaster) {
         })
     }
 
-    function submitJobsToBatch(simulation_data, job_name) {
+    function submitJobsToBatch(array_size, job_name, file_path) {
         return new Promise((resolve, reject) => {
 
             let simulation_params = {
               jobDefinition: config.jobDefinition, /* required */
-              jobName: shortid.generate(), /* required */
+              jobName: job_name, /* required */
               jobQueue: config.jobQueue, /* required */
               arrayProperties: {
-                size: simulation_data.length
+                size: array_size
               },
               parameters: {
-                'simulation_data': JSON.stringify(simulation_data).replace(/ /g,""),
+                'simulation_data': `s3://${config.simulation_bucket}/${file_path}`,
               },
               containerOverrides: {
                 command: [
@@ -265,7 +266,7 @@ if (cluster.isMaster) {
             };
             batch.submitJob(simulation_params, function(err, data) {
               if (err) {
-                console.log(err);
+                console.log(err, err.stack);
                 reject(err);
               } else {
                 console.log(data);
@@ -424,6 +425,27 @@ if (cluster.isMaster) {
             }
         })
 
+    }
+
+    function upload_simulation_data(simulation_data) {
+        return new Promise((resolve, reject) =>{
+            let job_id = shortid.generate();
+            let path = new Date().toISOString().slice(0,10) + `/${job_id}.json`;
+            let uploadParams = {
+                Bucket: config.simulation_bucket,
+                Key: path, // pass key
+                Body: JSON.stringify(simulation_data).replace(/ /g,"")
+            };
+            s3.upload(uploadParams, (err, data) => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve({job_id : job_id, path : path});
+                }
+            });
+
+        })
     }
 
     function uploadINPFile(user_id,timestamp,cb){
@@ -2666,7 +2688,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                             simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${image_token}/${_temp_player.image_id}`)
                             
                             let playerData = {
-                                "id" : "",
+                                "uid" : "",
                                 "player": {
                                    "name": "",
                                    "position": ""
@@ -2687,7 +2709,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                             playerData["simulation"]["linear-acceleration"][0] = _temp_player.linear_acceleration_pla ;
                             playerData["simulation"]["angular-acceleration"] = _temp_player.angular_acceleration_paa ;
                             playerData["simulation"]["impact-point"] = _temp_player.impact_location_on_head.toLowerCase().replace(/ /g,"-");;
-                            playerData["id"] = _temp_player.player_id.replace(/ /g,"-") + '_' + image_token;
+                            playerData["uid"] = _temp_player.player_id.replace(/ /g,"-") + '_' + image_token;
 
                             simulation_data.push({
                                 "impact_data":playerData,
@@ -2704,7 +2726,10 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                             if(counter == player_data_array.length) {
 
                                 // Call function to send simulation data for processing
-                                submitJobsToBatch(simulation_data, shortid.generate())
+                                upload_simulation_data(simulation_data)
+                                .then( job => {
+                                    return  submitJobsToBatch(simulation_data.length, job.job_id, job.path);
+                                })
                                 .then( value => {
                                     resolve(simulation_result_urls);
                                 })
