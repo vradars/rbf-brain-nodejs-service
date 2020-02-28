@@ -100,7 +100,8 @@ if (cluster.isMaster) {
         "ClientId" : process.env.CLIENTID,
         "react_website_url" : process.env.REACTURL,
         "simulation_result_host_url" : process.env.SIMULATION_RESULT_HOST_URL,
-        "queueUri" : process.env.QUEUE_URI
+        "jobQueue" : process.env.JOB_QUEUE,
+        "jobDefinition" : process.env.JOB_DEFINITION
     };
 
     const subject_signature  = fs.readFileSync("data/base64")
@@ -122,7 +123,9 @@ if (cluster.isMaster) {
     });
 
     var s3 = new AWS.S3();
-    var sqs = new AWS.SQS();
+
+
+    var batch = new AWS.Batch();
 
     const docClient = new AWS.DynamoDB.DocumentClient({
         convertEmptyValues: true
@@ -235,6 +238,40 @@ if (cluster.isMaster) {
                     resolve(token);
                 }
             })
+        })
+    }
+
+    function submitJobsToBatch(simulation_data, job_name) {
+        return new Promise((resolve, reject) => {
+
+            let simulation_params = {
+              jobDefinition: config.jobDefinition, /* required */
+              jobName: shortid.generate(), /* required */
+              jobQueue: config.jobQueue, /* required */
+              arrayProperties: {
+                size: simulation_data.length
+              },
+              parameters: {
+                'simulation_data': JSON.stringify(simulation_data).replace(/ /g,""),
+              },
+              containerOverrides: {
+                command: [
+                  'bash',
+                  'simulation.sh',
+                  'Ref::simulation_data'
+                  /* more items */
+                ]
+              }
+            };
+            batch.submitJob(simulation_params, function(err, data) {
+              if (err) {
+                console.log(err);
+                reject(err);
+              } else {
+                console.log(data);
+                resolve(data);
+              }
+            });
         })
     }
 
@@ -2604,36 +2641,16 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
             })
         })
 
-        function sendSqsMessage(player, index, image_id, image_token, token_secret) {
-          
-
-          var params = {
-            MessageBody: JSON.stringify({
-                "obj" : player,
-                "index" : index,
-                "image_id" : image_id,
-                "image_token" : image_token,
-                "token_secret" : token_secret
-            }),
-            QueueUrl: config_env.queueUri,
-            DelaySeconds: 0
-          };
-
-          sqs.sendMessage(params, function (err, data) {
-            if (err) {
-              console.log('Error while sending message to queue ', err);
-            } // an error occurred
-            else {
-              console.log('Successfully sent message to queue');
-            };
-          });
-        }
+     
 
         function generateSimulationForPlayers(player_data_array){
             return new Promise((resolve, reject) => {
                 var counter = 0 ;
                 var simulation_result_urls = [];
 
+                // Array that will store all the impact data that will be sent for simulation processing
+
+                var simulation_data = [];
                 player_data_array.forEach(( player,j ) => {
 
                     var _temp_player = player;
@@ -2647,36 +2664,56 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                             console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
 
                             simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${image_token}/${_temp_player.image_id}`)
-                            sendSqsMessage(_temp_player, index, _temp_player.image_id, image_token, token_secret);
-                           // setTimeout(generateSimulationForPlayer, simulation_timer, _temp_player, index, _temp_player.image_id, image_token, token_secret);
-                            //                        generateSimulationForPlayer(_temp_player, index, _temp_player.image_id)
-                            //                        .then(value =>{
-                            //                                console.log(value);
-                            //                        })
-                            //                      .catch(err => {
-                            //                                console.log(err);
-                            //                      })
+                            
+                            let playerData = {
+                                "id" : "",
+                                "player": {
+                                   "name": "",
+                                   "position": ""
+                                },
+                                "simulation": {
+                                   "mesh": "coarse_brain.inp",
+                                   "linear-acceleration": [0.0, 0.0, 0.0],
+                                   "angular-acceleration": 0.0,
+                                   "time-peak-acceleration": 2.0e-2,
+                                   "maximum-time": 4.0e-2,
+                                   "impact-point": ""
+                                }
+                            }
+
+                      
+                            playerData["player"]["name"] = _temp_player.player_id.replace(/ /g,"-");
+                            playerData["player"]["position"] = _temp_player.position.toLowerCase();
+                            playerData["simulation"]["linear-acceleration"][0] = _temp_player.linear_acceleration_pla ;
+                            playerData["simulation"]["angular-acceleration"] = _temp_player.angular_acceleration_paa ;
+                            playerData["simulation"]["impact-point"] = _temp_player.impact_location_on_head.toLowerCase().replace(/ /g,"-");;
+                            playerData["id"] = _temp_player.player_id.replace(/ /g,"-") + '_' + image_token;
+
+                            simulation_data.push({
+                                "impact_data":playerData,
+                                "index":index,
+                                "image_id":_temp_player.image_id,
+                                "image_token":image_token,
+                                "token_secret":token_secret,
+                                "date":_temp_player.date.split("/").join("-"),
+                                "player_id":_temp_player.player_id.split("$")[0].split(" ").join("-")
+                            })
 
                             counter++;
 
-                            if(counter == player_data_array.length){
-                                resolve(simulation_result_urls)
+                            if(counter == player_data_array.length) {
+
+                                // Call function to send simulation data for processing
+                                submitJobsToBatch(simulation_data, shortid.generate())
+                                .then( value => {
+                                    resolve(simulation_result_urls);
+                                })
+                                .catch(err => {
+                                    reject(err);
+                                })
+                                
                             }
-                            // .then(d => {
-                            //     console.log('COUNTER IS ', counter +1 );
-                            //     inner_counter++;
-                            //     image_array.push(d.base64)
-                            //     console.log('generateSimulationForPlayer' ,d);
-                            //     if(counter == player_data_array.length){
-                            //         res.send({
-                            //             message : "success",
-                            //             images : image_array
-                            //         })
-                            //     }
-                            // })
-                            // .catch( err => {
-                            //     console.log('ERROR IN GENERATE SIMULATION IMAGE ', err);
-                            // })
+                           
                         })
                         .catch(err => {
                             console.log("In error", err);
