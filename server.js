@@ -2709,7 +2709,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                             playerData["simulation"]["linear-acceleration"][0] = _temp_player.linear_acceleration_pla ;
                             playerData["simulation"]["angular-acceleration"] = _temp_player.angular_acceleration_paa ;
                             playerData["simulation"]["impact-point"] = _temp_player.impact_location_on_head.toLowerCase().replace(/ /g,"-");;
-                            playerData["uid"] = _temp_player.player_id.replace(/ /g,"-") + '_' + image_token;
+                            playerData["uid"] = _temp_player.player_id.split("$")[0].replace(/ /g,"-") + '_' + _temp_player.image_id;
 
                             simulation_data.push({
                                 "impact_data":playerData,
@@ -2718,7 +2718,8 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                                 "image_token":image_token,
                                 "token_secret":token_secret,
                                 "date":_temp_player.date.split("/").join("-"),
-                                "player_id":_temp_player.player_id.split("$")[0].split(" ").join("-")
+                                "player_id":_temp_player.player_id.split("$")[0].split(" ").join("-"),
+                                "impact":_temp_player.impact
                             })
 
                             counter++;
