@@ -242,13 +242,13 @@ if (cluster.isMaster) {
         })
     }
 
-    function submitJobsToBatch(array_size, job_name, file_path) {
+    function submitJobsToBatch(array_size, job_name, file_path, queue_name) {
         return new Promise((resolve, reject) => {
 
             let simulation_params = {
               jobDefinition: config.jobDefinition, /* required */
               jobName: job_name, /* required */
-              jobQueue: config.jobQueue, /* required */
+              jobQueue: queue_name, /* required */
               arrayProperties: {
                 size: array_size
               },
@@ -1860,12 +1860,16 @@ app.get(`/`, (req, res) => {
 
 app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
 
+    let queue_name = config_env.jobQueue;
+    if("queue" in req.body) {
+        queue_name = req.body.queue;
+    }
+
     // The file content will be in 'upload_file' parameter
     let buffer = Buffer.from(req.body.upload_file, 'base64');
 
-    // TODO : upload file in s3 ( Which bucket ? )
-
     // Converting xlsx file data into JSON
+    
     convertXLSXDataToJSON(buffer, function(items) {
 
 
@@ -1913,7 +1917,7 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
             //     "organization" : "STRING"
             // }
             var counter = 0 ;
-            console.log("UNIQUE PLAYERS ++++++++++++++ ",result);
+            // console.log("UNIQUE PLAYERS ",result);
 
             for(var i =0 ; i< result.length ; i++){
                 var temp = result[i];
@@ -1935,7 +1939,7 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                             }
                         }
                         else{
-                            generateSimulationForPlayers(player_data_array)
+                            generateSimulationForPlayers(player_data_array, queue_name)
                             .then(urls => {
                                 console.log(simulation_result_urls);
                                 console.log("URLS RECEIVED IS",urls);
@@ -1979,9 +1983,8 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
             }
         }
     })
+    })
 })
-})
-
 
 
 
@@ -2049,9 +2052,6 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
                     })
                     .then(token => {
-                        console.log(token);
-                        console.log("age now is ", age);
-                        console.log("Request.body.age is ", req.body.age);
 
                         if(req.body.isIRBComplete == true) {
 
@@ -2403,7 +2403,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
 
     app.post(`${apiPrefix}getPlayersDetails`, function(req, res){
-        console.log("Get Player details called",req.body);
+       
         getPlayersListFromTeamsDB(req.body)
         .then(data => {
             console.log(data.player_list);
@@ -2665,7 +2665,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
      
 
-        function generateSimulationForPlayers(player_data_array){
+        function generateSimulationForPlayers(player_data_array, queue_name){
             return new Promise((resolve, reject) => {
                 var counter = 0 ;
                 var simulation_result_urls = [];
@@ -2683,7 +2683,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
                         updateSimulationImageToDDB(_temp_player.image_id, config.usersbucket, "null", "pending", image_token, token_secret)
                         .then(value => {
-                            console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
+                           // console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
 
                             simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${image_token}/${_temp_player.image_id}`)
                             
@@ -2729,7 +2729,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                                 // Call function to send simulation data for processing
                                 upload_simulation_data(simulation_data)
                                 .then( job => {
-                                    return  submitJobsToBatch(simulation_data.length, job.job_id, job.path);
+                                    return  submitJobsToBatch(simulation_data.length, job.job_id, job.path, queue_name);
                                 })
                                 .then( value => {
                                     resolve(simulation_result_urls);
@@ -2742,7 +2742,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                            
                         })
                         .catch(err => {
-                            console.log("In error", err);
+                            console.log(err);
                             counter = result.length ;
                             j = player_data_array.length ;
                             reject(err)
@@ -2750,7 +2750,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                     })
                     .catch( err => {
 
-                        console.log("In error", err);
+                        console.log(err);
                         counter = result.length ;
                         j = player_data_array.length ;
                         reject(err)
@@ -2783,7 +2783,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                 playerData["simulation"]["linear-acceleration"][0] = obj.linear_acceleration_pla ;
                 playerData["simulation"]["angular-acceleration"] = obj.angular_acceleration_paa ;
                 playerData["simulation"]["impact-point"] = obj.impact_location_on_head.toLowerCase() ;
-                console.log("PLAYER DATA PARSED IS ", playerData);
+                
                 let p_id = obj.player_id.split("$")[0].split(" ").join("-");
                 let file_path = `/tmp/${p_id}/`;
                 let timestamp = Number(Date.now()).toString();
@@ -2819,7 +2819,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
                 })
                 .then(d =>{
-                    console.log("+++++++++++++++++++++ is ******** \n",d);
+                   
                     let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
 
                     resolve({
@@ -2828,7 +2828,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                     })
                 })
                 .catch(err => {
-                    console.log("In 1st Error",err);
+                    console.log(err);
                     reject({
                         message : "failure",
                         error : err
@@ -2926,7 +2926,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
         })
 
         app.post(`${apiPrefix}fetchAllTeamsInOrganization`, function(req, res){
-            console.log(req.body);
+            
             fetchAllTeamsInOrganization(req.body.organization)
             .then(list => {
                 var teamList = list.filter(function(team) {
