@@ -54,7 +54,7 @@ if (cluster.isMaster) {
 
     var _ = require('lodash');
     var simulation_timer = 120000 ; // 4 minutes in milliseconds
-
+    const csvparser = require("csvtojson");
 
     // ================================================
     //            SERVER CONFIGURATION
@@ -102,7 +102,8 @@ if (cluster.isMaster) {
         "simulation_result_host_url" : process.env.SIMULATION_RESULT_HOST_URL,
         "jobQueue" : process.env.JOB_QUEUE,
         "jobDefinition" : process.env.JOB_DEFINITION,
-        "simulation_bucket" : process.env.SIMULATION_BUCKET
+        "simulation_bucket" : process.env.SIMULATION_BUCKET,
+        "queue_x" : process.env.QUEUE_X
     };
 
     const subject_signature  = fs.readFileSync("data/base64")
@@ -249,9 +250,6 @@ if (cluster.isMaster) {
               jobDefinition: config.jobDefinition, /* required */
               jobName: job_name, /* required */
               jobQueue: queue_name, /* required */
-              arrayProperties: {
-                size: array_size
-              },
               parameters: {
                 'simulation_data': `s3://${config.simulation_bucket}/${file_path}`,
               },
@@ -264,6 +262,13 @@ if (cluster.isMaster) {
                 ]
               }
             };
+
+            if(array_size > 1) {
+                simulation_params['arrayProperties'] = {
+                    size: array_size
+                }
+            }
+
             batch.submitJob(simulation_params, function(err, data) {
               if (err) {
                 console.log(err, err.stack);
@@ -272,9 +277,10 @@ if (cluster.isMaster) {
                 console.log(data);
                 resolve(data);
               }
-            });
+            })
         })
     }
+
 
     function generateJWTokenWithNoExpiry(obj, secret){
         return new Promise((resolve, reject) =>{
@@ -429,7 +435,8 @@ if (cluster.isMaster) {
 
     function upload_simulation_data(simulation_data) {
         return new Promise((resolve, reject) =>{
-            let job_id = shortid.generate();
+            
+            let job_id = Math.random().toString(36).slice(2,12);
             let path = new Date().toISOString().slice(0,10) + `/${job_id}.json`;
             let uploadParams = {
                 Bucket: config.simulation_bucket,
@@ -1616,9 +1623,123 @@ function parseDate(date, arg, timezone) {
     return moment.utc(date  + " , " +   x , 'MM/DD/YYYY , hh:mm:ss a', true).milliseconds(Number(milliseconds)).valueOf();
 }
 
-function convertXLSXDataToJSON(buf,cb){
-    // york_data.xlsx
+function groupSensorData(arr) {
+    var helper = {};
+    console.log('ARRY IS ', arr);
+    var result = arr.reduce(function(accumulator, data_point) {
+        
+        var key = data_point['Session ID'] + '$' + data_point['Player ID'] + '$' + data_point['Date'];
+        
+        if(!helper[key]) {
+            helper[key] =  { 'date': data_point['Date'],
+                             'time': data_point['Time'],
+                             'session_id': data_point['Session ID'],
+                             'player_id': data_point['Player ID'] + '$' + Date.now() ,
+                             'sensor_id': data_point['Sensor ID'],
+                             'impact_id': data_point['Impact ID'],
+                             'linear-acceleration' : {
+                                'xt' : [parseFloat(data_point['Sample Num'])],
+                                'xv' : [parseFloat(data_point['Linear Acc x g'])],
+                                'yt' : [parseFloat(data_point['Sample Num'])],
+                                'yv' : [parseFloat(data_point['Linear Acc y g'])],
+                                'zt' : [parseFloat(data_point['Sample Num'])],
+                                'zv' : [parseFloat(data_point['Linear Acc z g'])]
+                             },
+                             'angular-acceleration' : {
+                                'xt' : [parseFloat(data_point['Sample Num'])],
+                                'xv' : [parseFloat(data_point['Angular Acc x rad/s2'])],
+                                'yt' : [parseFloat(data_point['Sample Num'])],
+                                'yv' : [parseFloat(data_point['Angular Acc y rad/s2'])],
+                                'zt' : [parseFloat(data_point['Sample Num'])],
+                                'zv' : [parseFloat(data_point['Angular Acc z rad/s2'])]
+                             },
+                             'angular-velocity' : {
+                                'xt' : [parseFloat(data_point['Sample Num'])],
+                                'xv' : [data_point['Angular Vel x rad/s']],
+                                'yt' : [parseFloat(data_point['Sample Num'])],
+                                'yv' : [data_point['Angular Vel y rad/s2']],
+                                'zt' : [parseFloat(data_point['Sample Num'])],
+                                'zv' : [data_point['Angular Vel z rad/s']]
+                             },                             
+                             'linear-acceleration-mag': [parseFloat(data_point['Linear Acc Mag g'])],
+                             'angular-velocity-mag': [parseFloat(data_point['Angular Vel Mag rad/s'])],
+                             'angular-acceleration-mag': [parseFloat(data_point['Angular Acc Mag rad/s2'])],
+                             'simulation_status' : 'pending'
+                         }
+            // create a copy of data_point
+            accumulator.push(helper[key]);
+        } else {
+            // Concat acceleration data
+           
+            helper[key]['linear-acceleration']['xv'].push(parseFloat(data_point['Linear Acc x g']))
+            helper[key]['linear-acceleration']['xt'].push(parseFloat(data_point['Sample Num']))
+            helper[key]['linear-acceleration']['yv'].push(parseFloat(data_point['Linear Acc y g']))
+            helper[key]['linear-acceleration']['yt'].push(parseFloat(data_point['Sample Num']))
+            helper[key]['linear-acceleration']['zv'].push(parseFloat(data_point['Linear Acc z g']))
+            helper[key]['linear-acceleration']['zt'].push(parseFloat(data_point['Sample Num']))
 
+            helper[key]['linear-acceleration-mag'].push(parseFloat(data_point['Linear Acc Mag g']))
+
+            helper[key]['angular-velocity']['xv'].push(data_point['Angular Vel x rad/s'])
+            helper[key]['angular-velocity']['xt'].push(parseFloat(data_point['Sample Num']))
+            helper[key]['angular-velocity']['yv'].push(data_point['Angular Vel y rad/s'])
+            helper[key]['angular-velocity']['yt'].push(parseFloat(data_point['Sample Num']))
+            helper[key]['angular-velocity']['zv'].push(data_point['Angular Vel z rad/s'])
+            helper[key]['angular-velocity']['zt'].push(parseFloat(data_point['Sample Num']))
+            helper[key]['angular-velocity-mag'].push(parseFloat(data_point['Angular Vel Mag rad/s'])) 
+
+            helper[key]['angular-acceleration']['xv'].push(parseFloat(data_point['Angular Acc x rad/s2']))
+            helper[key]['angular-acceleration']['xt'].push(parseFloat(data_point['Sample Num']))
+            helper[key]['angular-acceleration']['yv'].push(parseFloat(data_point['Angular Acc y rad/s2']))
+            helper[key]['angular-acceleration']['yt'].push(parseFloat(data_point['Sample Num']))
+            helper[key]['angular-acceleration']['zv'].push(parseFloat(data_point['Angular Acc z rad/s2']))
+            helper[key]['angular-acceleration']['zt'].push(parseFloat(data_point['Sample Num']))
+            helper[key]['angular-acceleration-mag'].push(parseFloat(data_point['Angular Acc Mag rad/s2']))  
+        }
+
+        return accumulator;
+    }, []);
+    
+    return result;
+}
+
+function convertCSVDataToJSON(buf) {
+    
+    return new Promise((resolve, reject) =>{
+        
+        csvparser()
+        .fromString(buf.toString())
+        .then( data => {
+           resolve(groupSensorData(data));
+        })
+        .catch(err => {
+            reject(err);
+        })
+    })
+
+}
+
+function convertFileDataToJson(buf, check, cb) {
+    return new Promise((resolve, reject) =>{  
+        if(check) {
+            convertCSVDataToJSON(buf)
+            .then(data => {
+                resolve(data);
+            })
+            .catch(err => {
+                reject(err);
+            })
+        } else {
+            convertXLSXDataToJSON(buf,function(items) {
+                resolve(items);
+            })
+        }
+    })
+}
+
+function convertXLSXDataToJSON(buf,cb){
+
+    // Generic data format
     var wb = XLSX.read(buf, {type:'buffer'});
     var sheet_name_list = wb.SheetNames;
     sheet_name_list.forEach(function(y) {
@@ -1650,8 +1771,6 @@ function convertXLSXDataToJSON(buf,cb){
 
             data[row][headers[col]] = value;
 
-
-
         }
         //drop those first two rows which are empty
         data.shift();
@@ -1659,7 +1778,7 @@ function convertXLSXDataToJSON(buf,cb){
         var data_array = data.filter(function(el) {
             return el.false_positive == false;
         });
-        console.log("The impact data found is ", data_array.length);
+
         for(var i = 0 ; i < data_array.length ; i++){
             var d = data_array[i];
             // TODO : Parse Date here
@@ -1672,12 +1791,15 @@ function convertXLSXDataToJSON(buf,cb){
 
 }
 
+
 function storeSensorData(sensor_data_array){
     return new Promise((resolve, reject) =>{
         var counter = 0 ;
         if(sensor_data_array.length == 0 ){
             resolve(true);
         }
+        resolve(true);
+        
         for(var i = 0 ; i < sensor_data_array.length ; i++){
 
             let param = {
@@ -1695,6 +1817,7 @@ function storeSensorData(sensor_data_array){
                 }
             })
         }
+        
     })
 }
 
@@ -1765,6 +1888,9 @@ function updateSimulationImageToDDB(image_id, bucket_name, path, status = "compl
                         });
 
                     }
+
+
+
                 }
             });
 
@@ -1787,12 +1913,14 @@ function addPlayerToTeamInDDB(org, team, player_id) {
                 reject(err);
             }
             else {
-                if (Object.keys(data).length == 0 && data.constructor === Object) {
-                    var dbInsert = {
-                        TableName: "teams",
-                        Item: { organization : org,
-                            team_name : team,
-                            player_list : [player_id] }
+                    if (Object.keys(data).length == 0 && data.constructor === Object) {
+                        var dbInsert = {
+                            TableName: "teams",
+                            Item: { 
+                                organization : org,
+                                team_name : team,
+                                player_list : [player_id] 
+                            }
                         };
                         docClient.put(dbInsert, function (err, data) {
                             if (err) {
@@ -1861,96 +1989,101 @@ app.get(`/`, (req, res) => {
 app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
 
     let queue_name = config_env.jobQueue;
+
     if("queue" in req.body) {
         queue_name = req.body.queue;
+    }
+    
+    let check = false;
+
+    if(queue_name ==  config_env.queue_x) {
+        check = true;
     }
 
     // The file content will be in 'upload_file' parameter
     let buffer = Buffer.from(req.body.upload_file, 'base64');
 
-    // Converting xlsx file data into JSON
-    
-    convertXLSXDataToJSON(buffer, function(items) {
+    // Converting file data into JSON
+    convertFileDataToJson(buffer, check)
+    .then( items => {
 
-
+         // Adding default organization PSU to the impact data
+         
         items.map((element) => {
             return element.organization = "PSU";
         });
 
+
         const new_items_array = _.map(items, o => _.extend({organization: "PSU"}, o));
+
+
+        // Adding image id in array data
         for(var i = 0 ; i < new_items_array.length ; i++){
+            
             var _temp = new_items_array[i] ;
             _temp["image_id"] = shortid.generate() ;
+           
+            if(check) {
+                 _temp["team"] = config_env.queue_x ;
+            }
+           
             new_items_array[i] = _temp ;
+
         }
 
+        // Stores sensor data in db 
+        // TableName: "sensor_data"
+        // team, player_id
+        
         storeSensorData(new_items_array)
         .then(flag => {
 
             var players = items.map(function (player) {
-                return {    player_id : player.player_id.split("$")[0],
-                team : player.team,
-                organization : player.organization,
-            }
-        });
+                return {    
+                    player_id : player.player_id.split("$")[0],
+                    team : check ? config_env.queue_x : player.team,
+                    organization : player.organization,
+                }
+            });
+            
+            
+            // Fetching unique players
+            const result = _.uniqBy(players, 'player_id')
 
-        var unique_players = _.uniq(players, 'player_id');
-        const result = [];
-        const map = new Map();
-        var simulation_result_urls = [];
-        for (const item of players) {
-            if(!map.has(item.player_id)){
-                map.set(item.player_id, true);    // set any value to Map
-                result.push(item);
-            }
-        }
-        if(result.length == 0){
-            res.send({
-                message : "success"
-            })
-        }
-        else{
-            // Run simulation here and send data
-            // {
-            //     "player_id" : "STRING",
-            //     "team" : "STRING",
-            //     "organization" : "STRING"
-            // }
-            var counter = 0 ;
-            // console.log("UNIQUE PLAYERS ",result);
+            var simulation_result_urls = [];
+ 
+            
+            if(result.length == 0) {
+                res.send({
+                    message : "success"
+                })
+            } else {
+                // Run simulation here and send data
+                // {
+                //     "player_id" : "STRING",
+                //     "team" : "STRING",
+                //     "organization" : "STRING"
+                // }
+                var counter = 0 ;
 
-            for(var i =0 ; i< result.length ; i++){
-                var temp = result[i];
+                for(var i = 0 ; i < result.length ; i++){
+                    var temp = result[i];
 
-                addPlayerToTeamInDDB(temp.organization, temp.team, temp.player_id)
-                .then(d => {
-                    // Generate simulation for player
-                    getCumulativeSensorData(temp)
-                    .then(player_data_array => {
-
-                        if(player_data_array.length == 0 ){
-
-                            counter++;
-                            if(counter == result.length){
+                    // Adds team details in db if doesn't already exist
+                    addPlayerToTeamInDDB(temp.organization,temp.team, temp.player_id)
+                    .then(d => {
+                        counter++;
+                        if(counter == result.length) {
+                        
+                            // Generate simulation for player
+                            generateSimulationForPlayers(new_items_array, queue_name, check)
+                            .then(urls => {
+                                simulation_result_urls.push(urls)
                                 res.send({
                                     message : "success",
-                                    image_url : simulation_result_urls
+                                    image_url : _.spread(_.union)(simulation_result_urls)
                                 })
-                            }
-                        }
-                        else{
-                            generateSimulationForPlayers(player_data_array, queue_name)
-                            .then(urls => {
-                                console.log(simulation_result_urls);
-                                console.log("URLS RECEIVED IS",urls);
-                                simulation_result_urls.push(urls)
-                                counter++;
-                                if(counter == result.length){
-                                    res.send({
-                                        message : "success",
-                                        image_url : _.spread(_.union)(simulation_result_urls)
-                                    })
-                                }
+                               
                             })
                             .catch(err => {
                                 counter = result.length ;
@@ -1960,10 +2093,10 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                                     error : err
                                 })
                             })
+                      
                         }
-                    }).
-                    catch(err => {
-                        console.log('ERROR');
+                    })
+                    .catch(err => {
                         counter = result.length ;
                         i = result.length ;
                         res.send({
@@ -1971,19 +2104,22 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                             error : err
                         })
                     })
-                })
-                .catch(err => {
-                    counter = result.length ;
-                    i = result.length ;
-                    res.send({
-                        message : "failure",
-                        error : err
-                    })
-                })
+                    
+                }
+                
             }
-        }
+            
+        })
+        
+        
     })
+    .catch(err => {
+        res.send({
+            message : "failure",
+            error : "Incorrect file format"
+        })
     })
+    
 })
 
 
@@ -2305,22 +2441,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
             })
         })
     })
-    app.post(`${apiPrefix}generateSimulation`, function(req, res){
-        console.log(req.body);
-        generateSimulationFile(req.body.user_id).then((d)=>{
-            res.send({
-                message : "success",
-                data : d
-            })
-        }).catch((err)=>{
-            console.log(err);
-            res.send({
-                message : "failure",
-                error : err
-            })
-        })
-    })
-
+    
     app.post(`${apiPrefix}generateSimulation`, function(req, res){
         console.log(req.body);
         generateSimulationFile(req.body.user_id).then((d)=>{
@@ -2665,7 +2786,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
      
 
-        function generateSimulationForPlayers(player_data_array, queue_name){
+        function generateSimulationForPlayers(player_data_array, queue_name, check){
             return new Promise((resolve, reject) => {
                 var counter = 0 ;
                 var simulation_result_urls = [];
@@ -2703,38 +2824,56 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                                 }
                             }
 
-                      
                             playerData["player"]["name"] = _temp_player.player_id.replace(/ /g,"-");
-                            playerData["player"]["position"] = _temp_player.position.toLowerCase();
-                            playerData["simulation"]["linear-acceleration"][0] = _temp_player.linear_acceleration_pla ;
-                            playerData["simulation"]["angular-acceleration"] = _temp_player.angular_acceleration_paa ;
-                            playerData["simulation"]["impact-point"] = _temp_player.impact_location_on_head.toLowerCase().replace(/ /g,"-");;
                             playerData["uid"] = _temp_player.player_id.split("$")[0].replace(/ /g,"-") + '_' + _temp_player.image_id;
 
-                            simulation_data.push({
+
+                            if(check) {
+
+                                playerData["simulation"]["linear-acceleration"] = _temp_player['linear-acceleration'];
+                                playerData["simulation"]["angular-acceleration"] = _temp_player['angular-acceleration'];
+                                playerData["simulation"]["maximum-time"] = parseFloat(_temp_player['linear-acceleration']['xt'][_temp_player['linear-acceleration']['xt'].length - 1]) / 1000;
+                            } else {
+                                
+                                playerData["player"]["position"] = _temp_player.position.toLowerCase();
+                                playerData["simulation"]["linear-acceleration"][0] = _temp_player.linear_acceleration_pla ;
+                                playerData["simulation"]["angular-acceleration"] = _temp_player.angular_acceleration_paa ;
+                                playerData["simulation"]["impact-point"] = _temp_player.impact_location_on_head.toLowerCase().replace(/ /g,"-");   
+                            
+                            }
+
+                            let temp_simulation_data = {
                                 "impact_data":playerData,
                                 "index":index,
                                 "image_id":_temp_player.image_id,
                                 "image_token":image_token,
                                 "token_secret":token_secret,
                                 "date":_temp_player.date.split("/").join("-"),
-                                "player_id":_temp_player.player_id.split("$")[0].split(" ").join("-"),
-                                "impact":_temp_player.impact
-                            })
+                                "player_id":_temp_player.player_id.split("$")[0].split(" ").join("-")
+                            }
 
+                            if("impact" in _temp_player) {
+                                temp_simulation_data["impact"] = _temp_player.impact
+                            }
+
+                            simulation_data.push(temp_simulation_data);
+                            
                             counter++;
 
                             if(counter == player_data_array.length) {
-
-                                // Call function to send simulation data for processing
+                                console.log('SIMULATION DATA IS ', simulation_data);
+                                // Uploading simulation data file
                                 upload_simulation_data(simulation_data)
                                 .then( job => {
+                                    // Submitting simulation job
                                     return  submitJobsToBatch(simulation_data.length, job.job_id, job.path, queue_name);
+
                                 })
                                 .then( value => {
                                     resolve(simulation_result_urls);
                                 })
                                 .catch(err => {
+                                    console.log(err);
                                     reject(err);
                                 })
                                 
@@ -2758,152 +2897,6 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                 })
             })
         }
-
-        function generateSimulationForPlayer(obj, index, image_id = null, token = null, token_secret = null){
-            return new Promise((resolve, reject)=>{
-                var playerData = {
-                    "player": {
-                        "name": "",
-                        "position": ""
-                    },
-                    "simulation": {
-                        "mesh": "coarse_brain.inp",
-                        "linear-acceleration": [0.0, 0.0, 0.0],
-                        "angular-acceleration": 0.0,
-                        "time-peak-acceleration": 2.0e-2,
-                        "maximum-time": 4.0e-2,
-                        "impact-point": ""
-                    }
-                }
-
-                // Max Linear Accelearation Impact data
-
-                playerData["player"]["name"] = obj.player_id ;
-                playerData["player"]["position"] = obj.position.toLowerCase() ;
-                playerData["simulation"]["linear-acceleration"][0] = obj.linear_acceleration_pla ;
-                playerData["simulation"]["angular-acceleration"] = obj.angular_acceleration_paa ;
-                playerData["simulation"]["impact-point"] = obj.impact_location_on_head.toLowerCase() ;
-                
-                let p_id = obj.player_id.split("$")[0].split(" ").join("-");
-                let file_path = `/tmp/${p_id}/`;
-                let timestamp = Number(Date.now()).toString();
-                let file_name = `${timestamp}.json`;
-                executeShellCommands(`mkdir -p ${file_path}`)
-                .then(d => {
-
-                    // STORE THE ABOVE DATA IN TMP/PLAYERID/TIMESTAMP.json
-                    return writeJsonToFile(file_path + file_name, playerData)
-
-                })
-                .then(d =>{
-
-                    // EXECUTE THE MPIRUN COMMAND
-                    let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5;mpirun --allow-run-as-root -np 16  --mca btl_base_warn_component_unused 0  -mca btl_vader_single_copy_mechanism none ex5 ${file_path}${file_name}`
-                    console.log(cmd);
-                    return executeShellCommands(cmd)
-
-                })
-                .then(d =>{
-
-                    // EXECUTE MERGEPOLYDATA PNG
-                    let cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${ p_id + obj.date.split("/").join("-") + "_" + index }.png`
-                  console.log(cmd);
-                    return executeShellCommands(cmd)
-
-                })
-                .then(d =>{
-                    // Upload the file on S3 bucket
-                    console.log("IMAGE ID IS ", image_id);
-                    let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
-                    return uploadPlayerSimulationFile(obj.player_id.split("$")[0].split(" ").join("-"), simulationFilePath, `${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`, obj.date.split("/").join("-"), image_id)
-
-                })
-                .then(d =>{
-                   
-                    let simulationFilePath = `/home/ec2-user/FemTech/build/examples/ex5/${  p_id + obj.date.split("/").join("-") + "_" + index  }.png`
-
-                    resolve({
-                        message : "success",
-                        data  : d
-                    })
-                })
-                .catch(err => {
-                    console.log(err);
-                    reject({
-                        message : "failure",
-                        error : err
-                    });
-                })
-            })
-
-        }
-
-        app.post(`${apiPrefix}generateSimulationForPlayer`, function(req, res){
-            // GET JSON data
-            // PARSE THE DATA IN REQUIRED FORMAT
-            // ======================== EXAMPLE FORMAT IS GIVEN =======================
-            // {
-            // "player": {
-            // 	"name": "harry",
-            // 	"position": "OL"
-            // },
-            // "simulation": {
-            // 	"mesh": "brain.inp",
-            // 	"linear-acceleration": [80.0, 0.0, 0.0],
-            // 	"angular-acceleration": 8000.0,
-            // 	"time-peak-acceleration": 1.0e-5,
-            // 	"maximum-time": 2.0e-5,
-            // 	"impact-point": "front-low"
-            // }
-            // }
-            //=========================================================================
-            // STORE IT IN TMP filter
-            // CALL THE MPIRUN AND EXECUTE
-            getCumulativeSensorData(req.body)
-            .then(player_data_array => {
-                if(player_data_array.length == 0 ){
-                    res.send({message : "success"})
-                }
-                else{
-                    var counter = 0 ;
-                    try {
-                        for(var i = 0 ; i < player_data_array.length ; i++){
-                            var temp = player_data_array[i];
-                            var index = i ;
-                            generateSimulationForPlayer(temp, index)
-                            .then(d => {
-                                counter++;
-                                if(counter == player_data_array.length){
-                                    res.send({
-                                        message : "success"
-                                    })
-                                }
-                            })
-                            .catch(err => {
-                                res.send({
-                                    message : "failure",
-                                    error : err
-                                })
-                            })
-                        }
-                    } catch (e) {
-                        res.send({
-                            message : "failure",
-                            error : e
-                        })
-                    }
-
-                }
-            })
-            .catch(err => {
-                res.send({
-                    message : "failure",
-                    error  : err
-                })
-            })
-
-
-        })
 
         app.post(`${apiPrefix}addTeam`, function(req, res){
             addTeam(req.body)
