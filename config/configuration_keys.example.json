@@ -1,15 +1,23 @@
 {
+
     "awsAccessKeyId": "",
-    "awsSecretAccessKey":"",
-    "awsBucket":"",
-    "avatar3dClientId":"",
-    "avatar3dclientSecret":"",
+    "awsSecretAccessKey": "", 
+    "avatar3dClientId": "",
+    "avatar3dclientSecret": "",
     "region" : "",
     "usersbucket": "",
-    "userPoolId": "",
     "apiVersion" :"",
-    "ClientId" : "" ,
-    "email_id" : "",
     "jwt_secret" : "",
-    "react_website_url" : ""
+    "email_id" : "",
+    "mail_list" : "",
+    "ComputeInstanceEndpoint" : "",
+    "userPoolId": "",
+    "ClientId" : "",
+    "react_website_url" : "",
+    "simulation_result_host_url" : "",
+    "jobQueue" : "",
+    "jobDefinition" : "",
+    "simulation_bucket" : "",
+    "queue_x" : "",
+    "queue_beta" : ""
 }
