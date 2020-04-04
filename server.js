@@ -103,7 +103,8 @@ if (cluster.isMaster) {
         "jobQueue" : process.env.JOB_QUEUE,
         "jobDefinition" : process.env.JOB_DEFINITION,
         "simulation_bucket" : process.env.SIMULATION_BUCKET,
-        "queue_x" : process.env.QUEUE_X
+        "queue_x" : process.env.QUEUE_X,
+        "queue_beta" : process.env.QUEUE_BETA
     };
 
     const subject_signature  = fs.readFileSync("data/base64")
@@ -140,8 +141,14 @@ if (cluster.isMaster) {
     })
     console.log(email, config_env.email_id_password);
 
-    app.use(bodyParser.urlencoded({ extended: true }));
-    app.use(bodyParser.json());
+    app.use(bodyParser.urlencoded({
+        limit : '50mb',
+        extended: true
+    }));
+    app.use(bodyParser.json({
+        limit : '50mb',
+        extended: true
+    }));
 
     // view engine setup
     app.set('views', path.join(__dirname, 'views'));
@@ -1798,14 +1805,14 @@ function storeSensorData(sensor_data_array){
         if(sensor_data_array.length == 0 ){
             resolve(true);
         }
-        resolve(true);
-        
+       
         for(var i = 0 ; i < sensor_data_array.length ; i++){
 
             let param = {
                 TableName: "sensor_data",
                 Item: sensor_data_array[i]
             };
+            
             docClient.put(param, function (err, data) {
                 counter++;
                 if (err) {
@@ -1816,6 +1823,7 @@ function storeSensorData(sensor_data_array){
                     resolve(true);
                 }
             })
+            
         }
         
     })
@@ -1898,6 +1906,115 @@ function updateSimulationImageToDDB(image_id, bucket_name, path, status = "compl
     })
 }
 
+function checkIfSelfiePresent(player_id) {
+    return new Promise((resolve, reject) => {
+        //Fetch user details from dynamodb
+        let params = {
+            TableName: "users",
+            Key: {
+                "user_cognito_id": player_id
+            }
+        };
+        docClient.get(params, function (err, data) {
+            if (err) {
+                reject(err);
+            }
+            else {
+                console.log("check if selfie present ", data);
+                if ((Object.keys(data).length == 0 && data.constructor === Object) || ('is_selfie_image_uploaded' in data.Item && data.Item.is_selfie_image_uploaded == false)) {
+                    resolve(false);
+                }
+                else {
+                    resolve(true);
+                }
+            }
+        });
+
+    })
+}
+
+function uploadPlayerImage(selfie, player_id, filename) {
+    return new Promise((resolve, reject) => {
+        var uploadParams = {
+            Bucket: BUCKET_NAME,
+            Key: '', // pass key
+            Body: null, // pass file body
+        };
+
+        const params = uploadParams;
+        player_id = player_id.replace(/ /g,"-");
+        var file_extension = filename.split(".");
+        file_extension = file_extension[file_extension.length - 1];
+
+        let file_name = Date.now();
+
+        params.Key = `${player_id}/profile/image/${file_name}.${file_extension}`;
+        params.Body = Buffer.from(selfie, 'base64');
+        // Call S3 Upload
+        s3.upload(params, (err, data) => {
+            if (err) {
+                reject(err);
+            }
+            else {
+                resolve(data);
+            }
+        });
+
+    });
+    
+}
+
+function getSignedUrl(key) {
+    return new Promise((resolve, reject) => {
+        s3.getSignedUrl('getObject', {Bucket: BUCKET_NAME,Key: key}, function (err, url) {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(url);
+            }
+        });
+    });
+}
+
+function uploadPlayerSelfieIfNotPresent(selfie, player_id, filename) {
+    return new Promise((resolve, reject) => {
+        // If no selfie details present then resolve
+        if(!selfie) {
+            resolve('No selfie in request');
+        } else {
+            // Check if selfie model is present
+            checkIfSelfiePresent(player_id.replace(/ /g,"-"))
+            .then(data => {
+                if(data) {
+                    // If selfie present data = true
+                    resolve(data)
+                } else {
+                    // upload selfie and generate meshes
+                    uploadPlayerImage(selfie, player_id, filename)
+                    .then((imageDetails) => {
+                        return getSignedUrl(imageDetails.Key) 
+                    })
+                    .then((url) => {
+                        // Get signed url for the image
+                        return computeImageData({body : { image_url : url, user_cognito_id : player_id.replace(/ /g,"-")}});
+                    })
+                    .then((details)=> {
+                        resolve(details);
+                    })
+                    .catch((err) => {
+                        console.log(err);
+                        reject(err);
+                    })
+                }
+            })
+            .catch(err => {
+                console.log(err);
+                reject(err);
+            })
+        }
+    })
+}
+
 function addPlayerToTeamInDDB(org, team, player_id) {
     return new Promise((resolve, reject)=>{
         // if flag is true it means data array is to be created
@@ -1908,6 +2025,7 @@ function addPlayerToTeamInDDB(org, team, player_id) {
                 "team_name" : team
             }
         };
+      
         docClient.get(params, function (err, data) {
             if (err) {
                 reject(err);
@@ -1952,7 +2070,7 @@ function addPlayerToTeamInDDB(org, team, player_id) {
 
                         docClient.update(dbInsert, function (err, data) {
                             if (err) {
-                                console.log("ERROR WHILE CREATING DATA",err);
+                            
                                 reject(err);
 
                             } else {
@@ -1970,6 +2088,115 @@ function addPlayerToTeamInDDB(org, team, player_id) {
 
 
     })
+}
+
+function computeImageData(req) {
+    // Input { image_url : '', user_cognito_id : ''}
+    return new Promise((resolve, reject) => {
+        // Get URL Image in input
+        // Get User cognito ID in input
+        // 1. Generate 3d Avatar
+        // 1.1 Set update in DB that selfie model is uploaded
+        // 2. Genearte 3d Profile Image from PLY file of 3D Avatar
+        // 2.1 Set Update in DB that 3d Profile Png image generated is uploaded
+        // - Generate STL file from PLY File -> output -> timestamp.stl | Call pvpython extract.py
+        // - Generate Parameters file from PLY File -> output -> timestamp.stl | Call pvpython controlpoints.py
+        // 3. Generate INP File
+        // - Generate the VTK
+        // - Generate Morphed VTK file | call python3  RBF_coarse.py
+        // 3.1 Set update in DB that inp file is uploaded
+        // 4. Do simulation & generate PNG file of it
+        // 4.1 Set Update in DB that simulation file is generated
+        // Adding timestamp as filename to request
+        req.body["file_name"] = Number(Date.now()).toString();
+        generate3DModel(req.body)
+        .then((data)=>{
+
+            upload3DModelZip(req.body,function(err,data){
+
+                if(err){
+                    // Create Selfie PNG Image using ProjectedTexture VTK
+                    reject(err);
+                    
+                }
+                else{
+                    executeShellCommands(`xvfb-run ./../MergePolyData/build/ImageCapture ./avatars/${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`)
+                    .then((data)=>{
+                        // Upload the selfie image generated on S3
+                        uploadGeneratedSelfieImage(req.body,function(err,data){
+                            if(err){
+                                reject(err);
+                            }
+                            else{
+
+
+                                updateSelfieAndModelStatusInDB(req.body,function(err,data){
+
+                                    if(err){
+                                       reject(err);
+                                    }
+                                    else{
+                                        generateStlFromPly(req.body)
+                                        .then(d => {
+                                            return generateParametersFileFromStl(req.body)
+                                        })
+                                        .then(d => {
+                                            // Generate INP File
+                                            generateINP(req.body.user_cognito_id, req.body)
+                                            .then((d)=>{
+
+                                                // Update Status of INP File generation
+                                                updateINPFileStatusInDB(req.body, function(err,data){
+
+                                                    if(err){
+                                                        reject(err);
+                                                    }
+                                                    else{
+                                                        
+                                                        // Function to clean up
+                                                        // the files generated
+                                                        cleanUp(req.body)
+                                                        .then( d =>{
+                                                            resolve({message : "success"})
+                                                        })
+                                                        .catch( err => {
+                                                            reject(err);
+                                                        })
+
+                                                        
+                                                    }
+                                                })
+
+
+                                            }).catch((err)=>{
+                                                console.log(err);
+                                                reject(err);
+                                            })
+                                        })
+                                        .catch(err => {
+                                            reject(err);
+                                        })
+
+                                    }
+                                })
+                            }
+                        })
+                    })
+                    .catch((err)=>{
+                        reject(err);
+
+                    })
+
+                }
+
+            })
+        })
+        .catch((err)=>{
+            reject(err);
+        })
+
+    })
+   
 }
 
 function base64_encode(file) {
@@ -1996,7 +2223,7 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
     
     let check = false;
 
-    if(queue_name ==  config_env.queue_x) {
+    if(queue_name ==  config_env.queue_x || queue_name == config_env.queue_beta) {
         check = true;
     }
 
@@ -2007,7 +2234,7 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
     convertFileDataToJson(buffer, check)
     .then( items => {
 
-         // Adding default organization PSU to the impact data
+        // Adding default organization PSU to the impact data
          
         items.map((element) => {
             return element.organization = "PSU";
@@ -2074,9 +2301,13 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                     .then(d => {
                         counter++;
                         if(counter == result.length) {
-                        
+
+                            // Upload player selfie if not present and generate meshes
                             // Generate simulation for player
-                            generateSimulationForPlayers(new_items_array, queue_name, check)
+                            uploadPlayerSelfieIfNotPresent(req.body.selfie, temp.player_id, req.body.filename)
+                            .then((selfieDetails) => {
+                                return generateSimulationForPlayers(new_items_array, queue_name, check);
+                            })
                             .then(urls => {
                                 simulation_result_urls.push(urls)
                                 res.send({
@@ -2084,8 +2315,10 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                                     image_url : _.spread(_.union)(simulation_result_urls)
                                 })
                                
+                               
                             })
                             .catch(err => {
+                                console.log(err);
                                 counter = result.length ;
                                 i = result.length ;
                                 res.send({
@@ -2097,6 +2330,7 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                         }
                     })
                     .catch(err => {
+                        console.log(err);
                         counter = result.length ;
                         i = result.length ;
                         res.send({
@@ -2276,154 +2510,21 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
 
     app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(req, res){
+        
 
-        // Get URL Image in input
-        // Get User cognito ID in input
-        // 1. Generate 3d Avatar
-        // 1.1 Set update in DB that selfie model is uploaded
-        // 2. Genearte 3d Profile Image from PLY file of 3D Avatar
-        // 2.1 Set Update in DB that 3d Profile Png image generated is uploaded
-        // - Generate STL file from PLY File -> output -> timestamp.stl | Call pvpython extract.py
-        // - Generate Parameters file from PLY File -> output -> timestamp.stl | Call pvpython controlpoints.py
-        // 3. Generate INP File
-        // - Generate the VTK
-        // - Generate Morphed VTK file | call python3  RBF_coarse.py
-        // 3.1 Set update in DB that inp file is uploaded
-        // 4. Do simulation & generate PNG file of it
-        // 4.1 Set Update in DB that simulation file is generated
-
-        // Adding timestamp as filename to request
-        req.body["file_name"] = Number(Date.now()).toString();
-        generate3DModel(req.body)
-        .then((data)=>{
-
-            upload3DModelZip(req.body,function(err,data){
-
-                if(err){
-                    // Create Selfie PNG Image using ProjectedTexture VTK
-                    // TODO
-                    res.send({
-                        message : "failure",
-                        error : err
-                    })
-                }
-                else{
-                    executeShellCommands(`xvfb-run ./../MergePolyData/build/ImageCapture ./avatars/${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`)
-                    .then((data)=>{
-                        // Upload the selfie image generated on S3
-                        uploadGeneratedSelfieImage(req.body,function(err,data){
-                            if(err){
-                                res.send({
-                                    message : "failure",
-                                    error : err
-                                })
-                            }
-                            else{
-
-
-                                updateSelfieAndModelStatusInDB(req.body,function(err,data){
-
-                                    if(err){
-                                        res.send({
-                                            message : "failure",
-                                            error : err
-                                        })
-
-                                    }
-                                    else{
-                                        generateStlFromPly(req.body)
-                                        .then(d => {
-                                            return generateParametersFileFromStl(req.body)
-                                        })
-                                        .then(d => {
-                                            // Generate INP File
-                                            generateINP(req.body.user_cognito_id, req.body)
-                                            .then((d)=>{
-
-                                                // Update Status of INP File generation
-                                                updateINPFileStatusInDB(req.body, function(err,data){
-
-                                                    if(err){
-                                                        res.send({
-                                                            message : "failure",
-                                                            error : er
-                                                        })
-
-                                                    }
-                                                    else{
-                                                        // Create Simulation File
-
-                                                        //generateSimulationFile(req.body.user_cognito_id)
-                                                        //.then((data)=>{
-
-                                                        // Update status of simulation file
-                                                        //  return updateSimulationFileStatusInDB(req.body)
-
-                                                        //}).then((data) => {
-                                                        // Function to clean up
-                                                        // the files generated
-                                                        cleanUp(req.body)
-                                                        .then( d =>{
-                                                            res.send({
-                                                                message : "success"
-                                                            })
-                                                        })
-                                                        .catch( err => {
-                                                            res.send({
-                                                                message : "failure",
-                                                                error : err
-                                                            })
-                                                        })
-
-                                                        //}).catch((err)=>{
-                                                        //   res.send({
-                                                        //       message : "failure",
-                                                        //       error : err
-                                                        //   });
-                                                        // })
-                                                    }
-                                                })
-
-
-                                            }).catch((err)=>{
-                                                console.log(err);
-                                                res.send({
-                                                    message : "failure",
-                                                    error : err
-                                                })
-                                            })
-                                        })
-                                        .catch(err => {
-                                            res.send({
-                                                message : "failure",
-                                                error : err
-                                            })
-                                        })
-
-                                    }
-                                })
-                            }
-                        })
-                    })
-                    .catch((err)=>{
-                        res.send({
-                            message : "failure",
-                            error : err
-                        })
-
-                    })
-
-                }
-
-            })
+        computeImageData(req)
+        .then((data) => {
+            res.send({ 
+                message : "success"
+            });
         })
-        .catch((err)=>{
+        .catch((err) => {
             res.send({
-                message : "failure",
+                message : failure,
                 error : err
             })
         })
-
+        
     })
 
     app.post(`${apiPrefix}generateINF`, function(req, res){
