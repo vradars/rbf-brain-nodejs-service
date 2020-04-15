@@ -3015,7 +3015,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                                 playerData["simulation"]["angular-acceleration"] = _temp_player['angular-acceleration'];
 
                                 if(reader == 2) {
-                                    playerData["simulation"]["maximum-time"] = _temp_player.max_time;
+                                    playerData["simulation"]["maximum-time"] = _temp_player.time;
                                 } else {
                                     playerData["simulation"]["maximum-time"] = parseFloat(_temp_player['linear-acceleration']['xt'][_temp_player['linear-acceleration']['xt'].length - 1]) / 1000;
 
