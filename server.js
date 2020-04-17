@@ -1692,8 +1692,9 @@ function groupSensorDataForY(arr, filename) {
         data['angular-acceleration']['zt'].push(curr_time)
 
     }
-   
-    data.time = max_time
+    
+    // Add max_time in simulation ( in seconds )
+    data.time = max_time/1000;
 
     return [data];
 }
