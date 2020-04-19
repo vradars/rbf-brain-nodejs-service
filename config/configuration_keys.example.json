@@ -19,5 +19,6 @@
     "jobDefinition" : "",
     "simulation_bucket" : "",
     "queue_x" : "",
+    "queue_y" : "",
     "queue_beta" : ""
 }

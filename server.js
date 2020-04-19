@@ -104,14 +104,15 @@ if (cluster.isMaster) {
         "jobDefinition" : process.env.JOB_DEFINITION,
         "simulation_bucket" : process.env.SIMULATION_BUCKET,
         "queue_x" : process.env.QUEUE_X,
+        "queue_y" : process.env.QUEUE_Y,
         "queue_beta" : process.env.QUEUE_BETA
     };
 
     const subject_signature  = fs.readFileSync("data/base64")
     
     var config_env = config ;
-    //var config = require('./config/configuration_keys.json');
-    //var config_env = config;
+    // var config = require('./config/configuration_keys.json');
+    // var config_env = config;
 
     //AWS.config.loadFromPath('./config/configuration_keys.json');
     const BUCKET_NAME = config_env.usersbucket;
@@ -1630,9 +1631,77 @@ function parseDate(date, arg, timezone) {
     return moment.utc(date  + " , " +   x , 'MM/DD/YYYY , hh:mm:ss a', true).milliseconds(Number(milliseconds)).valueOf();
 }
 
+function groupSensorDataForY(arr, filename) {
+    let data = {
+        'player_id' : filename.split("-")[0].split("MG")[1] + '$' + Date.now(),
+        'date' : filename.split("-").slice(2,5).join("-").split("T")[0],
+        'time' : 0,
+        'team' : config_env.queue_y,
+        'linear-acceleration' : {
+            'xt' : [],
+            'xv' : [],
+            'yt' : [],
+            'yv' : [],
+            'zt' : [],
+            'zv' : []
+         },
+         'angular-acceleration' : {
+            'xt' : [],
+            'xv' : [],
+            'yt' : [],
+            'yv' : [],
+            'zt' : [],
+            'zv' : []
+         },
+         'angular-velocity' : {
+            'xt' : [],
+            'xv' : [],
+            'yt' : [],
+            'yv' : [],
+            'zt' : [],
+            'zv' : []
+         },
+         'simulation_status' : 'pending'
+
+    }
+    let max_time = parseFloat(arr[0]["t"]["sec"])*1000;
+    for(let i = 0; i < arr.length; i++) {
+        let curr_time = parseFloat(arr[i]["t"]["sec"])*1000;
+        if(curr_time > max_time) 
+            max_time = curr_time;
+        
+        data['linear-acceleration']['xv'].push(parseFloat(arr[i]["PLA"]['X']['msec^2']))
+        data['linear-acceleration']['xt'].push(curr_time)
+        data['linear-acceleration']['yv'].push(parseFloat(arr[i]['PLA']['Y']['msec^2']))
+        data['linear-acceleration']['yt'].push(curr_time)
+        data['linear-acceleration']['zv'].push(parseFloat(arr[i]['PLA']['Z']['msec^2']))
+        data['linear-acceleration']['zt'].push(curr_time)
+
+        data['angular-velocity']['xv'].push(parseFloat(arr[i]['PAV']['X']['radsec']))
+        data['angular-velocity']['xt'].push(curr_time)
+        data['angular-velocity']['yv'].push(parseFloat(arr[i]['PAV']['Y']['radsec']))
+        data['angular-velocity']['yt'].push(curr_time)
+        data['angular-velocity']['zv'].push(parseFloat(arr[i]['PAV']['Z']['radsec']))
+        data['angular-velocity']['zt'].push(curr_time)
+
+        data['angular-acceleration']['xv'].push(parseFloat(arr[i]['PAA']['X']['radsec^2']))
+        data['angular-acceleration']['xt'].push(curr_time)
+        data['angular-acceleration']['yv'].push(parseFloat(arr[i]['PAA']['Y']['radsec^2']))
+        data['angular-acceleration']['yt'].push(curr_time)
+        data['angular-acceleration']['zv'].push(parseFloat(arr[i]['PAA']['Z']['radsec^2']))
+        data['angular-acceleration']['zt'].push(curr_time)
+
+    }
+    
+    // Add max_time in simulation ( in seconds )
+    data.time = max_time/1000;
+
+    return [data];
+}
+
 function groupSensorData(arr) {
     var helper = {};
-    console.log('ARRY IS ', arr);
+    
     var result = arr.reduce(function(accumulator, data_point) {
         
         var key = data_point['Session ID'] + '$' + data_point['Player ID'] + '$' + data_point['Date'];
@@ -1710,30 +1779,37 @@ function groupSensorData(arr) {
     return result;
 }
 
-function convertCSVDataToJSON(buf) {
+function convertCSVDataToJSON(buf, reader, filename) {
     
     return new Promise((resolve, reject) =>{
         
         csvparser()
         .fromString(buf.toString())
         .then( data => {
-           resolve(groupSensorData(data));
+            if( reader == 1 ) {
+                resolve(groupSensorData(data));
+            } else {
+                resolve(groupSensorDataForY(data, filename));
+            }
         })
         .catch(err => {
+            console.log('err is ', err);
             reject(err);
         })
     })
 
 }
 
-function convertFileDataToJson(buf, check, cb) {
+function convertFileDataToJson(buf, reader, filename) {
+    
     return new Promise((resolve, reject) =>{  
-        if(check) {
-            convertCSVDataToJSON(buf)
+        if(reader == 1 || reader == 2) {
+            convertCSVDataToJSON(buf, reader,filename)
             .then(data => {
                 resolve(data);
             })
             .catch(err => {
+                console.log('ERROR IS ', JSON.stringify(err));
                 reject(err);
             })
         } else {
@@ -2214,25 +2290,32 @@ app.get(`/`, (req, res) => {
 })
 
 app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
-
+    
     let queue_name = config_env.jobQueue;
 
     if("queue" in req.body) {
         queue_name = req.body.queue;
     }
     
-    let check = false;
+    let reader = 0;
 
     if(queue_name ==  config_env.queue_x || queue_name == config_env.queue_beta) {
-        check = true;
+        reader = 1;
+    }
+    let filename = null;
+
+    if( queue_name == config_env.queue_y ) {
+        reader = 2;
+        filename = req.body.data_filename
     }
 
     // The file content will be in 'upload_file' parameter
     let buffer = Buffer.from(req.body.upload_file, 'base64');
 
     // Converting file data into JSON
-    convertFileDataToJson(buffer, check)
+    convertFileDataToJson(buffer, reader, filename)
     .then( items => {
+        
 
         // Adding default organization PSU to the impact data
          
@@ -2240,9 +2323,8 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
             return element.organization = "PSU";
         });
 
-
+        
         const new_items_array = _.map(items, o => _.extend({organization: "PSU"}, o));
-
 
         // Adding image id in array data
         for(var i = 0 ; i < new_items_array.length ; i++){
@@ -2250,13 +2332,14 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
             var _temp = new_items_array[i] ;
             _temp["image_id"] = shortid.generate() ;
            
-            if(check) {
-                 _temp["team"] = config_env.queue_x ;
+            if(reader == 1) {
+                _temp["team"] = config_env.queue_x ;
             }
            
             new_items_array[i] = _temp ;
 
         }
+        console.log('New items array is ', new_items_array);
 
         // Stores sensor data in db 
         // TableName: "sensor_data"
@@ -2268,15 +2351,14 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
             var players = items.map(function (player) {
                 return {    
                     player_id : player.player_id.split("$")[0],
-                    team : check ? config_env.queue_x : player.team,
+                    team : (reader == 1) ? config_env.queue_x : player.team,
                     organization : player.organization,
                 }
             });
             
-            
             // Fetching unique players
             const result = _.uniqBy(players, 'player_id')
-
+            
             var simulation_result_urls = [];
  
             
@@ -2306,7 +2388,7 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                             // Generate simulation for player
                             uploadPlayerSelfieIfNotPresent(req.body.selfie, temp.player_id, req.body.filename)
                             .then((selfieDetails) => {
-                                return generateSimulationForPlayers(new_items_array, queue_name, check);
+                                return generateSimulationForPlayers(new_items_array, queue_name, reader);
                             })
                             .then(urls => {
                                 simulation_result_urls.push(urls)
@@ -2887,7 +2969,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
      
 
-        function generateSimulationForPlayers(player_data_array, queue_name, check){
+        function generateSimulationForPlayers(player_data_array, queue_name, reader){
             return new Promise((resolve, reject) => {
                 var counter = 0 ;
                 var simulation_result_urls = [];
@@ -2929,11 +3011,16 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                             playerData["uid"] = _temp_player.player_id.split("$")[0].replace(/ /g,"-") + '_' + _temp_player.image_id;
 
 
-                            if(check) {
-
+                            if(reader == 1 || reader == 2) {
                                 playerData["simulation"]["linear-acceleration"] = _temp_player['linear-acceleration'];
                                 playerData["simulation"]["angular-acceleration"] = _temp_player['angular-acceleration'];
-                                playerData["simulation"]["maximum-time"] = parseFloat(_temp_player['linear-acceleration']['xt'][_temp_player['linear-acceleration']['xt'].length - 1]) / 1000;
+
+                                if(reader == 2) {
+                                    playerData["simulation"]["maximum-time"] = _temp_player.time;
+                                } else {
+                                    playerData["simulation"]["maximum-time"] = parseFloat(_temp_player['linear-acceleration']['xt'][_temp_player['linear-acceleration']['xt'].length - 1]) / 1000;
+
+                                }
                             } else {
                                 
                                 playerData["player"]["position"] = _temp_player.position.toLowerCase();
