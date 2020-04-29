@@ -109,7 +109,7 @@ if (cluster.isMaster) {
     };
 
     const subject_signature  = fs.readFileSync("data/base64")
-    
+
     var config_env = config ;
     // var config = require('./config/configuration_keys.json');
     // var config_env = config;
@@ -413,7 +413,8 @@ if (cluster.isMaster) {
         });
 
     }
-    function upload3DModelZip(obj,cb){
+    function upload3DModelZip(obj) {
+      return new Promise((resolve, reject) => {
         console.log("IN UPLOAD MODEL");
         var uploadParams = {
             Bucket: config.usersbucket,
@@ -423,27 +424,26 @@ if (cluster.isMaster) {
         fs.readFile(`./avatars/${obj.user_cognito_id}.zip`, function (err, headBuffer) {
             if (err) {
                 console.log(err);
-                cb(err,'');
+                reject(err);
             }
             else {
                 uploadParams.Body = headBuffer;
                 s3.upload(uploadParams, (err, data) => {
                     if (err) {
-                        cb(err,'');
+                        reject(err);
                     }
                     else {
-                        cb('',data);
+                        resolve(data);
                     }
                 });
-
             }
         })
-
+      })
     }
 
     function upload_simulation_data(simulation_data) {
         return new Promise((resolve, reject) =>{
-            
+
             let job_id = Math.random().toString(36).slice(2,12);
             let path = new Date().toISOString().slice(0,10) + `/${job_id}.json`;
             let uploadParams = {
@@ -463,9 +463,9 @@ if (cluster.isMaster) {
         })
     }
 
-    function uploadINPFile(user_id,timestamp,cb){
+    function uploadINPFile(user_id,timestamp){
 
-
+      return new Promise((resolve, reject) => {
         var uploadParams = {
             Bucket: config.usersbucket,
             Key: '', // pass key
@@ -476,7 +476,7 @@ if (cluster.isMaster) {
 
         fs.readFile(`./../users_data/${user_id}/rbf/${timestamp}.inp`, function (err, headBuffer) {
             if (err) {
-                cb(err,'');
+                reject(err);
             }
             else {
                 params.Key = user_id + "/profile/rbf/" + timestamp + ".inp";
@@ -484,49 +484,51 @@ if (cluster.isMaster) {
                 // Call S3 Upload
                 s3.upload(params, (err, data) => {
                     if (err) {
-                        cb(err,'');
+                        reject(err);
                     }
                     else {
-                        cb('',data);
+                        resolve(data);
                     }
                 });
 
             }
         })
+      })
 
     }
 
 
-    function uploadVTKFile(user_id,timestamp,cb){
+    function uploadVTKFile(user_id,timestamp){
 
+      return new Promise((resolve, reject) => {
+          var uploadParams = {
+              Bucket: config.usersbucket,
+              Key: '', // pass key
+              Body: null, // pass file body
+          };
 
-        var uploadParams = {
-            Bucket: config.usersbucket,
-            Key: '', // pass key
-            Body: null, // pass file body
-        };
+          const params = uploadParams;
 
-        const params = uploadParams;
+          fs.readFile(`../users_data/${user_id}/morphed_vtk/${timestamp}.vtk`, function (err, headBuffer) {
+              if (err) {
+                  reject(err);
+              }
+              else {
+                  params.Key = user_id + "/profile/rbf/vtk/" + timestamp + ".vtk";
+                  params.Body = headBuffer;
+                  // Call S3 Upload
+                  s3.upload(params, (err, data) => {
+                      if (err) {
+                          reject(err);
+                      }
+                      else {
+                          resolve(data);
+                      }
+                  });
 
-        fs.readFile(`../users_data/${user_id}/morphed_vtk/${timestamp}.vtk`, function (err, headBuffer) {
-            if (err) {
-                cb(err,'');
-            }
-            else {
-                params.Key = user_id + "/profile/rbf/vtk/" + timestamp + ".vtk";
-                params.Body = headBuffer;
-                // Call S3 Upload
-                s3.upload(params, (err, data) => {
-                    if (err) {
-                        cb(err,'');
-                    }
-                    else {
-                        cb('',data);
-                    }
-                });
-
-            }
-        })
+              }
+          })
+        });
 
     }
 
@@ -564,36 +566,38 @@ if (cluster.isMaster) {
     }
 
 
-    function uploadGeneratedSelfieImage(obj,cb){
+    function uploadGeneratedSelfieImage(obj){
 
+        return new Promise((resolve, reject) => {
+          var uploadParams = {
+              Bucket: config.usersbucket,
+              Key: '', // pass key
+              Body: null, // pass file body
+          };
 
-        var uploadParams = {
-            Bucket: config.usersbucket,
-            Key: '', // pass key
-            Body: null, // pass file body
-        };
+          const params = uploadParams;
 
-        const params = uploadParams;
+          fs.readFile(`./avatars/${obj.user_cognito_id}/head/${obj.file_name}.png`, function (err, headBuffer) {
+              if (err) {
+                  reject(err);
+              }
+              else {
+                  params.Key = `${obj.user_cognito_id}/profile/image/${obj.file_name}.png`;
+                  params.Body = headBuffer;
+                  // Call S3 Upload
+                  s3.upload(params, (err, data) => {
+                      if (err) {
+                          reject(err);
+                      }
+                      else {
+                          resolve(data);
+                      }
+                  });
 
-        fs.readFile(`./avatars/${obj.user_cognito_id}/head/${obj.file_name}.png`, function (err, headBuffer) {
-            if (err) {
-                cb(err,'');
-            }
-            else {
-                params.Key = `${obj.user_cognito_id}/profile/image/${obj.file_name}.png`;
-                params.Body = headBuffer;
-                // Call S3 Upload
-                s3.upload(params, (err, data) => {
-                    if (err) {
-                        cb(err,'');
-                    }
-                    else {
-                        cb('',data);
-                    }
-                });
+              }
+          })
 
-            }
-        })
+        });
 
     }
 
@@ -692,43 +696,30 @@ if (cluster.isMaster) {
                                 else{
                                      generateMorphedVTK(obj)
                                     .then((d)=>{
-
                                         var cmd = `mkdir -p ./../users_data/${user_id}/rbf/ ; ./../MergePolyData/build/MergePolyData -in ./../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ./../users_data/${user_id}/rbf/${obj.file_name}.vtk -abaqus ;`
-                                        executeShellCommands(cmd)
-                                        .then(d => {
-                                            return generateCentroidLookUpTable(obj);
-                                        })
-                                        .then(d => {
-                                            return uploadCentroidLookUpFile(obj)
-                                        })
-                                        .then(d => {
-                                            uploadINPFile(user_id,obj.file_name,(err,data)=>{
-
-                                                if(err){
-                                                    reject(err);
-
-                                                }
-                                                else{
-                                                    uploadVTKFile(user_id, obj.file_name, (err, data)=>{
-
-                                                        if(err){
-
-                                                            reject(err);
-                                                        }
-                                                        else{
-                                                            resolve(data);
-                                                        }
-                                                    })
-                                                }
-                                            })
-                                        })
-                                        .catch((err)=>{
-                                            reject(err);
-                                        })
-                                    }).catch((err)=>{
-
+                                        return executeShellCommands(cmd);
+                                    })
+                                    .then(d => {
+                                        return generateCentroidLookUpTable(obj);
+                                    })
+                                    .then(d => {
+                                        return uploadCentroidLookUpFile(obj);
+                                    })
+                                    .then(d => {
+                                      return uploadINPFile(user_id,obj.file_name);
+                                    })
+                                    .then(d => {
+                                      return uploadVTKFile(user_id, obj.file_name);
+                                    })
+                                    .then(d => {
+                                      return uploadCGValuesAndSetINPStatus(user_id, obj.file_name);
+                                    })
+                                    .then(d => {
+                                      resolve(true);
+                                    })
+                                    .catch((err)=>{
                                         reject(err);
-                                    });
+                                    })
                                 }
                             })
                         }
@@ -740,53 +731,63 @@ if (cluster.isMaster) {
     }
 
 
-    function updateSelfieAndModelStatusInDB(obj,cb){
-        var userParams = {
-            TableName: "users",
-            Key: {
-                "user_cognito_id": obj.user_cognito_id
-            },
-            UpdateExpression: "set is_selfie_image_uploaded = :selfie_image_uploaded, is_selfie_model_uploaded = :selfie_model_uploaded",
-            ExpressionAttributeValues: {
-                ":selfie_model_uploaded": true,
-                ":selfie_image_uploaded": true,
-            },
-            ReturnValues: "UPDATED_NEW"
-        };
-        docClient.update(userParams, (err, data) => {
-            if (err) {
-                cb(err,'');
-            } else {
-                cb('',data);
-            }
-        })
+    function updateSelfieAndModelStatusInDB(obj){
 
-
+        return new Promise((resolve, reject) => {
+          var userParams = {
+              TableName: "users",
+              Key: {
+                  "user_cognito_id": obj.user_cognito_id
+              },
+              UpdateExpression: "set is_selfie_image_uploaded = :selfie_image_uploaded, is_selfie_model_uploaded = :selfie_model_uploaded",
+              ExpressionAttributeValues: {
+                  ":selfie_model_uploaded": true,
+                  ":selfie_image_uploaded": true,
+              },
+              ReturnValues: "UPDATED_NEW"
+          };
+          docClient.update(userParams, (err, data) => {
+              if (err) {
+                  reject(err);
+              } else {
+                  resolve(data);
+              }
+          })
+        });
 
     }
 
-
-    function updateINPFileStatusInDB(obj,cb){
-        var userParams = {
-            TableName: "users",
-            Key: {
-                "user_cognito_id": obj.user_cognito_id
-            },
-            UpdateExpression: "set is_selfie_inp_uploaded = :is_selfie_inp_uploaded",
-            ExpressionAttributeValues: {
-                ":is_selfie_inp_uploaded": true
-
-            },
-            ReturnValues: "UPDATED_NEW"
-        };
-        docClient.update(userParams, (err, data) => {
+    function uploadCGValuesAndSetINPStatus(user_cognito_id, file_name) {
+      return new Promise((resolve, reject) => {
+        fs.readFile(`./../users_data/${user_cognito_id}/morphed_vtk/${file_name}_cg.txt`, "utf8", function (err, data) {
             if (err) {
-                cb(err,'');
-            } else {
-                cb('',data);
+                reject(err)
+            }
+            else {
+              var userParams = {
+                  TableName: "users",
+                  Key: {
+                      "user_cognito_id": user_cognito_id
+                  },
+                  UpdateExpression: "set cg_coordinates = :cg, is_cg_present = :present, is_selfie_inp_uploaded = :is_selfie_inp_uploaded",
+                  ExpressionAttributeValues: {
+                      ":cg": data.split(" "),
+                      ":present": true,
+                      ":is_selfie_inp_uploaded": true
+                  },
+                  ReturnValues: "UPDATED_NEW"
+              };
+              docClient.update(userParams, (err, data) => {
+                  if (err) {
+                      reject(err);
+                  } else {
+                      resolve(data);
+                  }
+              })
+
             }
         })
-
+      });
     }
 
 
@@ -1276,7 +1277,17 @@ function generateMorphedVTK(obj){
         executeShellCommands(cmd)
         .then(d => {
             console.log("MORPHED VTK POST<<<<<--------------\n",d);
-            resolve(d)
+            let fiber_cmd = `python3  ./../rbf-brain/RBF_coarse.py  --p ./../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm --m ./../rbf-brain/fiber_mesh.vtk --output ./../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}_fiber.vtk`;
+            return executeShellCommands(fiber_cmd);
+        })
+        .then(output => {
+          console.log('Output of fiber mesh ', output);
+          let cg_cmd = `python3  ./../rbf-brain/RBF_CG.py  --p ./../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm --m ./../rbf-brain/cg.vtk --output ./../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}_cg.txt`;
+          return executeShellCommands(cg_cmd);
+        })
+        .then(cg => {
+          console.log('output of cg value ', cg);
+          resolve(cg);
         })
         .catch(err => {
             console.log("MORPHED VTK <<<<<--------------\n",err);
@@ -1284,6 +1295,7 @@ function generateMorphedVTK(obj){
         })
     })
 }
+
 
 function generateCentroidLookUpTable(obj){
     return new Promise((resolve, reject) =>{
@@ -1337,19 +1349,17 @@ function uploadCentroidLookUpFile(obj){
 }
 
 function cleanUp(obj){
-return new Promise((resolve, reject) =>{
-  console.log("Clean is called");
-  executeShellCommands(`rm -fr ./../users_data/${obj.user_cognito_id}/ ; rm -rf ./avatars/${obj.user_cognito_id}/ ; rm -f ./avatars/${obj.user_cognito_id}.zip;`)
-  .then( d =>{
-      resolve(d);
+  return new Promise((resolve, reject) =>{
+    console.log("Clean is called");
+    executeShellCommands(`rm -fr ./../users_data/${obj.user_cognito_id}/ ; rm -rf ./avatars/${obj.user_cognito_id}/ ; rm -f ./avatars/${obj.user_cognito_id}.zip;`)
+    .then( d =>{
+        resolve(d);
+    })
+    .catch( err =>{
+      reject(err);
+
+    })
   })
-  .catch( err =>{
-    reject(err);
-
-  })
-
-
-})
 }
 
 
@@ -1667,9 +1677,9 @@ function groupSensorDataForY(arr, filename) {
     let max_time = parseFloat(arr[0]["t"]["sec"])*1000;
     for(let i = 0; i < arr.length; i++) {
         let curr_time = parseFloat(arr[i]["t"]["sec"])*1000;
-        if(curr_time > max_time) 
+        if(curr_time > max_time)
             max_time = curr_time;
-        
+
         data['linear-acceleration']['xv'].push(parseFloat(arr[i]["PLA"]['X']['msec^2']))
         data['linear-acceleration']['xt'].push(curr_time)
         data['linear-acceleration']['yv'].push(parseFloat(arr[i]['PLA']['Y']['msec^2']))
@@ -1692,7 +1702,7 @@ function groupSensorDataForY(arr, filename) {
         data['angular-acceleration']['zt'].push(curr_time)
 
     }
-    
+
     // Add max_time in simulation ( in seconds )
     data.time = max_time/1000;
 
@@ -1701,11 +1711,11 @@ function groupSensorDataForY(arr, filename) {
 
 function groupSensorData(arr) {
     var helper = {};
-    
+
     var result = arr.reduce(function(accumulator, data_point) {
-        
+
         var key = data_point['Session ID'] + '$' + data_point['Player ID'] + '$' + data_point['Date'];
-        
+
         if(!helper[key]) {
             helper[key] =  { 'date': data_point['Date'],
                              'time': data_point['Time'],
@@ -1736,7 +1746,7 @@ function groupSensorData(arr) {
                                 'yv' : [data_point['Angular Vel y rad/s2']],
                                 'zt' : [parseFloat(data_point['Sample Num'])],
                                 'zv' : [data_point['Angular Vel z rad/s']]
-                             },                             
+                             },
                              'linear-acceleration-mag': [parseFloat(data_point['Linear Acc Mag g'])],
                              'angular-velocity-mag': [parseFloat(data_point['Angular Vel Mag rad/s'])],
                              'angular-acceleration-mag': [parseFloat(data_point['Angular Acc Mag rad/s2'])],
@@ -1746,7 +1756,7 @@ function groupSensorData(arr) {
             accumulator.push(helper[key]);
         } else {
             // Concat acceleration data
-           
+
             helper[key]['linear-acceleration']['xv'].push(parseFloat(data_point['Linear Acc x g']))
             helper[key]['linear-acceleration']['xt'].push(parseFloat(data_point['Sample Num']))
             helper[key]['linear-acceleration']['yv'].push(parseFloat(data_point['Linear Acc y g']))
@@ -1762,7 +1772,7 @@ function groupSensorData(arr) {
             helper[key]['angular-velocity']['yt'].push(parseFloat(data_point['Sample Num']))
             helper[key]['angular-velocity']['zv'].push(data_point['Angular Vel z rad/s'])
             helper[key]['angular-velocity']['zt'].push(parseFloat(data_point['Sample Num']))
-            helper[key]['angular-velocity-mag'].push(parseFloat(data_point['Angular Vel Mag rad/s'])) 
+            helper[key]['angular-velocity-mag'].push(parseFloat(data_point['Angular Vel Mag rad/s']))
 
             helper[key]['angular-acceleration']['xv'].push(parseFloat(data_point['Angular Acc x rad/s2']))
             helper[key]['angular-acceleration']['xt'].push(parseFloat(data_point['Sample Num']))
@@ -1770,19 +1780,19 @@ function groupSensorData(arr) {
             helper[key]['angular-acceleration']['yt'].push(parseFloat(data_point['Sample Num']))
             helper[key]['angular-acceleration']['zv'].push(parseFloat(data_point['Angular Acc z rad/s2']))
             helper[key]['angular-acceleration']['zt'].push(parseFloat(data_point['Sample Num']))
-            helper[key]['angular-acceleration-mag'].push(parseFloat(data_point['Angular Acc Mag rad/s2']))  
+            helper[key]['angular-acceleration-mag'].push(parseFloat(data_point['Angular Acc Mag rad/s2']))
         }
 
         return accumulator;
     }, []);
-    
+
     return result;
 }
 
 function convertCSVDataToJSON(buf, reader, filename) {
-    
+
     return new Promise((resolve, reject) =>{
-        
+
         csvparser()
         .fromString(buf.toString())
         .then( data => {
@@ -1801,8 +1811,8 @@ function convertCSVDataToJSON(buf, reader, filename) {
 }
 
 function convertFileDataToJson(buf, reader, filename) {
-    
-    return new Promise((resolve, reject) =>{  
+
+    return new Promise((resolve, reject) =>{
         if(reader == 1 || reader == 2) {
             convertCSVDataToJSON(buf, reader,filename)
             .then(data => {
@@ -1881,14 +1891,14 @@ function storeSensorData(sensor_data_array){
         if(sensor_data_array.length == 0 ){
             resolve(true);
         }
-       
+
         for(var i = 0 ; i < sensor_data_array.length ; i++){
 
             let param = {
                 TableName: "sensor_data",
                 Item: sensor_data_array[i]
             };
-            
+
             docClient.put(param, function (err, data) {
                 counter++;
                 if (err) {
@@ -1899,9 +1909,9 @@ function storeSensorData(sensor_data_array){
                     resolve(true);
                 }
             })
-            
+
         }
-        
+
     })
 }
 
@@ -2037,7 +2047,7 @@ function uploadPlayerImage(selfie, player_id, filename) {
         });
 
     });
-    
+
 }
 
 function getSignedUrl(key) {
@@ -2068,7 +2078,7 @@ function uploadPlayerSelfieIfNotPresent(selfie, player_id, filename) {
                     // upload selfie and generate meshes
                     uploadPlayerImage(selfie, player_id, filename)
                     .then((imageDetails) => {
-                        return getSignedUrl(imageDetails.Key) 
+                        return getSignedUrl(imageDetails.Key)
                     })
                     .then((url) => {
                         // Get signed url for the image
@@ -2101,7 +2111,7 @@ function addPlayerToTeamInDDB(org, team, player_id) {
                 "team_name" : team
             }
         };
-      
+
         docClient.get(params, function (err, data) {
             if (err) {
                 reject(err);
@@ -2110,10 +2120,10 @@ function addPlayerToTeamInDDB(org, team, player_id) {
                     if (Object.keys(data).length == 0 && data.constructor === Object) {
                         var dbInsert = {
                             TableName: "teams",
-                            Item: { 
+                            Item: {
                                 organization : org,
                                 team_name : team,
-                                player_list : [player_id] 
+                                player_list : [player_id]
                             }
                         };
                         docClient.put(dbInsert, function (err, data) {
@@ -2146,7 +2156,7 @@ function addPlayerToTeamInDDB(org, team, player_id) {
 
                         docClient.update(dbInsert, function (err, data) {
                             if (err) {
-                            
+
                                 reject(err);
 
                             } else {
@@ -2186,93 +2196,44 @@ function computeImageData(req) {
         // Adding timestamp as filename to request
         req.body["file_name"] = Number(Date.now()).toString();
         generate3DModel(req.body)
+        .then(data => {
+          return upload3DModelZip(req.body);
+        })
+        .then(data => {
+          // Create Selfie PNG Image using ProjectedTexture VTK
+          return executeShellCommands(`xvfb-run ./../MergePolyData/build/ImageCapture ./avatars/${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`);
+        })
         .then((data)=>{
-
-            upload3DModelZip(req.body,function(err,data){
-
-                if(err){
-                    // Create Selfie PNG Image using ProjectedTexture VTK
-                    reject(err);
-                    
-                }
-                else{
-                    executeShellCommands(`xvfb-run ./../MergePolyData/build/ImageCapture ./avatars/${req.body.user_cognito_id}/head/model.ply ./avatars/${req.body.user_cognito_id}/head/model.jpg ./avatars/${req.body.user_cognito_id}/head/${req.body.file_name}.png`)
-                    .then((data)=>{
-                        // Upload the selfie image generated on S3
-                        uploadGeneratedSelfieImage(req.body,function(err,data){
-                            if(err){
-                                reject(err);
-                            }
-                            else{
-
-
-                                updateSelfieAndModelStatusInDB(req.body,function(err,data){
-
-                                    if(err){
-                                       reject(err);
-                                    }
-                                    else{
-                                        generateStlFromPly(req.body)
-                                        .then(d => {
-                                            return generateParametersFileFromStl(req.body)
-                                        })
-                                        .then(d => {
-                                            // Generate INP File
-                                            generateINP(req.body.user_cognito_id, req.body)
-                                            .then((d)=>{
-
-                                                // Update Status of INP File generation
-                                                updateINPFileStatusInDB(req.body, function(err,data){
-
-                                                    if(err){
-                                                        reject(err);
-                                                    }
-                                                    else{
-                                                        
-                                                        // Function to clean up
-                                                        // the files generated
-                                                        cleanUp(req.body)
-                                                        .then( d =>{
-                                                            resolve({message : "success"})
-                                                        })
-                                                        .catch( err => {
-                                                            reject(err);
-                                                        })
-
-                                                        
-                                                    }
-                                                })
-
-
-                                            }).catch((err)=>{
-                                                console.log(err);
-                                                reject(err);
-                                            })
-                                        })
-                                        .catch(err => {
-                                            reject(err);
-                                        })
-
-                                    }
-                                })
-                            }
-                        })
-                    })
-                    .catch((err)=>{
-                        reject(err);
-
-                    })
-
-                }
-
-            })
+          // Upload the selfie image generated on S3
+          return uploadGeneratedSelfieImage(req.body);
+        })
+        .then(d => {
+          return updateSelfieAndModelStatusInDB(req.body);
+        })
+        .then(data => {
+          return generateStlFromPly(req.body);
+        })
+        .then(d => {
+          return generateParametersFileFromStl(req.body)
+        })
+        .then(d => {
+          // Generate INP File
+          return generateINP(req.body.user_cognito_id, req.body);
+        })
+        .then( data => {
+          // Function to clean up
+          // the files generated
+          return cleanUp(req.body);
+        })
+        .then( d => {
+            resolve({message : "success"});
         })
         .catch((err)=>{
+            console.log(err);
             reject(err);
         })
-
     })
-   
+
 }
 
 function base64_encode(file) {
@@ -2290,13 +2251,13 @@ app.get(`/`, (req, res) => {
 })
 
 app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
-    
+
     let queue_name = config_env.jobQueue;
 
     if("queue" in req.body) {
         queue_name = req.body.queue;
     }
-    
+
     let reader = 0;
 
     if(queue_name ==  config_env.queue_x || queue_name == config_env.queue_beta) {
@@ -2315,53 +2276,53 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
     // Converting file data into JSON
     convertFileDataToJson(buffer, reader, filename)
     .then( items => {
-        
+
 
         // Adding default organization PSU to the impact data
-         
+
         items.map((element) => {
             return element.organization = "PSU";
         });
 
-        
+
         const new_items_array = _.map(items, o => _.extend({organization: "PSU"}, o));
 
         // Adding image id in array data
         for(var i = 0 ; i < new_items_array.length ; i++){
-            
+
             var _temp = new_items_array[i] ;
             _temp["image_id"] = shortid.generate() ;
-           
+
             if(reader == 1) {
                 _temp["team"] = config_env.queue_x ;
             }
-           
+
             new_items_array[i] = _temp ;
 
         }
         console.log('New items array is ', new_items_array);
 
-        // Stores sensor data in db 
+        // Stores sensor data in db
         // TableName: "sensor_data"
         // team, player_id
-        
+
         storeSensorData(new_items_array)
         .then(flag => {
 
             var players = items.map(function (player) {
-                return {    
+                return {
                     player_id : player.player_id.split("$")[0],
                     team : (reader == 1) ? config_env.queue_x : player.team,
                     organization : player.organization,
                 }
             });
-            
+
             // Fetching unique players
             const result = _.uniqBy(players, 'player_id')
-            
+
             var simulation_result_urls = [];
- 
-            
+
+
             if(result.length == 0) {
                 res.send({
                     message : "success"
@@ -2396,8 +2357,8 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                                     message : "success",
                                     image_url : _.spread(_.union)(simulation_result_urls)
                                 })
-                               
-                               
+
+
                             })
                             .catch(err => {
                                 console.log(err);
@@ -2408,7 +2369,7 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                                     error : err
                                 })
                             })
-                      
+
                         }
                     })
                     .catch(err => {
@@ -2420,14 +2381,14 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
                             error : err
                         })
                     })
-                    
+
                 }
-                
+
             }
-            
+
         })
-        
-        
+
+
     })
     .catch(err => {
         res.send({
@@ -2435,7 +2396,7 @@ app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m
             error : "Incorrect file format"
         })
     })
-    
+
 })
 
 
@@ -2592,11 +2553,11 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
 
     app.post(`${apiPrefix}computeImageData`, setConnectionTimeout('10m'), function(req, res){
-        
+
 
         computeImageData(req)
         .then((data) => {
-            res.send({ 
+            res.send({
                 message : "success"
             });
         })
@@ -2606,7 +2567,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                 error : err
             })
         })
-        
+
     })
 
     app.post(`${apiPrefix}generateINF`, function(req, res){
@@ -2624,7 +2585,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
             })
         })
     })
-    
+
     app.post(`${apiPrefix}generateSimulation`, function(req, res){
         console.log(req.body);
         generateSimulationFile(req.body.user_id).then((d)=>{
@@ -2707,7 +2668,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
 
     app.post(`${apiPrefix}getPlayersDetails`, function(req, res){
-       
+
         getPlayersListFromTeamsDB(req.body)
         .then(data => {
             console.log(data.player_list);
@@ -2967,7 +2928,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
             })
         })
 
-     
+
 
         function generateSimulationForPlayers(player_data_array, queue_name, reader){
             return new Promise((resolve, reject) => {
@@ -2990,7 +2951,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                            // console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
 
                             simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${image_token}/${_temp_player.image_id}`)
-                            
+
                             let playerData = {
                                 "uid" : "",
                                 "player": {
@@ -3022,12 +2983,12 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
                                 }
                             } else {
-                                
+
                                 playerData["player"]["position"] = _temp_player.position.toLowerCase();
                                 playerData["simulation"]["linear-acceleration"][0] = _temp_player.linear_acceleration_pla ;
                                 playerData["simulation"]["angular-acceleration"] = _temp_player.angular_acceleration_paa ;
-                                playerData["simulation"]["impact-point"] = _temp_player.impact_location_on_head.toLowerCase().replace(/ /g,"-");   
-                            
+                                playerData["simulation"]["impact-point"] = _temp_player.impact_location_on_head.toLowerCase().replace(/ /g,"-");
+
                             }
 
                             let temp_simulation_data = {
@@ -3045,7 +3006,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                             }
 
                             simulation_data.push(temp_simulation_data);
-                            
+
                             counter++;
 
                             if(counter == player_data_array.length) {
@@ -3064,9 +3025,9 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                                     console.log(err);
                                     reject(err);
                                 })
-                                
+
                             }
-                           
+
                         })
                         .catch(err => {
                             console.log(err);
@@ -3107,7 +3068,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
         })
 
         app.post(`${apiPrefix}fetchAllTeamsInOrganization`, function(req, res){
-            
+
             fetchAllTeamsInOrganization(req.body.organization)
             .then(list => {
                 var teamList = list.filter(function(team) {
