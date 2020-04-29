@@ -773,7 +773,7 @@ if (cluster.isMaster) {
                   },
                   UpdateExpression: "set cg_coordinates = :cg, is_cg_present = :present, is_selfie_inp_uploaded = :is_selfie_inp_uploaded",
                   ExpressionAttributeValues: {
-                      ":cg": data.split(" "),
+                      ":cg": data.split(" ").map(function (x) {return Number(x).toFixed(6)}),
                       ":present": true,
                       ":is_selfie_inp_uploaded": true
                   },
