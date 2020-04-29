@@ -102,6 +102,7 @@ if (cluster.isMaster) {
         "simulation_result_host_url" : process.env.SIMULATION_RESULT_HOST_URL,
         "jobQueue" : process.env.JOB_QUEUE,
         "jobDefinition" : process.env.JOB_DEFINITION,
+        "jobDefinitionBeta" : process.env.JOB_DEFINITION_BETA,
         "simulation_bucket" : process.env.SIMULATION_BUCKET,
         "queue_x" : process.env.QUEUE_X,
         "queue_y" : process.env.QUEUE_Y,
@@ -253,7 +254,6 @@ if (cluster.isMaster) {
 
     function submitJobsToBatch(array_size, job_name, file_path, queue_name) {
         return new Promise((resolve, reject) => {
-
             let simulation_params = {
               jobDefinition: config.jobDefinition, /* required */
               jobName: job_name, /* required */
@@ -270,7 +270,9 @@ if (cluster.isMaster) {
                 ]
               }
             };
-
+            if(queue_name == "beta") {
+              simulation_params.jobDefinition = config.jobDefinitionBeta
+            }
             if(array_size > 1) {
                 simulation_params['arrayProperties'] = {
                     size: array_size
@@ -2100,6 +2102,24 @@ function uploadPlayerSelfieIfNotPresent(selfie, player_id, filename) {
         }
     })
 }
+function fetchCGValues(player_id) {
+    return new Promise((resolve, reject) => {
+      let params = {
+        TableName : "users",
+        Key : {
+          "user_cognito_id" : player_id
+        },
+        ProjectionExpression : "cg_coordinates"
+      };
+      docClient.get(params, function(err, data) {
+        if(err) {
+          reject(err);
+        } else {
+          resolve(data.Item.cg_coordinates);
+        }
+      })
+    })
+}
 
 function addPlayerToTeamInDDB(org, team, player_id) {
     return new Promise((resolve, reject)=>{
@@ -2948,6 +2968,11 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
 
                         updateSimulationImageToDDB(_temp_player.image_id, config.usersbucket, "null", "pending", image_token, token_secret)
                         .then(value => {
+                          return fetchCGValues(_temp_player.player_id.split("$")[0].replace(/ /g,"-"));
+                        })
+                        .then(cg_coordinates => {
+                           console.log('CG coordinates are ', cg_coordinates);
+
                            // console.log("LOOPING THROUGH COMPONENTS ++++++++++ !!!!! ",index ,_temp_player);
 
                             simulation_result_urls.push(`${config_env.simulation_result_host_url}simulation/results/${image_token}/${_temp_player.image_id}`)
@@ -2967,7 +2992,9 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                                    "impact-point": ""
                                 }
                             }
-
+                            if(cg_coordinates) {
+                              playerData.simulation["head-cg"] = cg_coordinates;
+                            }
                             playerData["player"]["name"] = _temp_player.player_id.replace(/ /g,"-");
                             playerData["uid"] = _temp_player.player_id.split("$")[0].replace(/ /g,"-") + '_' + _temp_player.image_id;
 
@@ -3010,7 +3037,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                             counter++;
 
                             if(counter == player_data_array.length) {
-                                console.log('SIMULATION DATA IS ', simulation_data);
+                                console.log('SIMULATION DATA IS ', JSON.stringify(simulation_data));
                                 // Uploading simulation data file
                                 upload_simulation_data(simulation_data)
                                 .then( job => {
