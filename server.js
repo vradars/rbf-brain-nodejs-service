@@ -2115,11 +2115,11 @@ function fetchCGValues(player_id) {
         if(err) {
           reject(err);
         } else {
-          let { cg_coordinates } = data.Item;
-          if(cg_coordinates) {
-            resolve(cg_coordinates);
-          } else {
+          console.log('cg data is ', data);
+          if(JSON.stringify(data).length == 2) {
             resolve([]);
+          } else {
+            resolve(data.Item.cg_coordinates);
           }
         }
       })
