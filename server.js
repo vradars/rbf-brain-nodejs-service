@@ -2115,7 +2115,12 @@ function fetchCGValues(player_id) {
         if(err) {
           reject(err);
         } else {
-          resolve(data.Item.cg_coordinates);
+          let { cg_coordinates } = data.Item;
+          if(cg_coordinates) {
+            resolve(cg_coordinates);
+          } else {
+            resolve([]);
+          }
         }
       })
     })
