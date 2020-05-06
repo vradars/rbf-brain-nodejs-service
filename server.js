@@ -698,7 +698,7 @@ if (cluster.isMaster) {
                                 else{
                                      generateMorphedVTK(obj)
                                     .then((d)=>{
-                                        var cmd = `mkdir -p ./../users_data/${user_id}/rbf/ ; ./../MergePolyData/build/MergePolyData -in ./../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ./../users_data/${user_id}/rbf/${obj.file_name}.vtk -abaqus ;`
+                                        var cmd = `mkdir -p ./../users_data/${user_id}/rbf/ ; ./../MergePolyData/build/InpFromVTK -in ./../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ./../users_data/${user_id}/rbf/${obj.file_name}.vtk;`
                                         return executeShellCommands(cmd);
                                     })
                                     .then(d => {
@@ -1274,7 +1274,7 @@ function generateParametersFileFromStl(obj){
 
 function generateMorphedVTK(obj){
     return new Promise((resolve, reject) =>{
-        var cmd = `mkdir -p ./../users_data/${obj.user_cognito_id}/morphed_vtk/ && python3  ./../rbf-brain/RBF_coarse.py  --p ./../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm --m ./../rbf-brain/coarse_mesh.vtk --output ./../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk`;
+        var cmd = `mkdir -p ./../users_data/${obj.user_cognito_id}/morphed_vtk/ && python3  ./../rbf-brain/RBF_coarse.py  --p ./../users_data/${obj.user_cognito_id}/parameters/${obj.file_name}.prm --m ./../rbf-brain/coarse_brain.vtk --output ./../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk`;
         console.log(cmd);
         executeShellCommands(cmd)
         .then(d => {
@@ -2115,7 +2115,6 @@ function fetchCGValues(player_id) {
         if(err) {
           reject(err);
         } else {
-          console.log('cg data is ', data);
           if(JSON.stringify(data).length == 2) {
             resolve([]);
           } else {
@@ -2278,7 +2277,6 @@ app.get(`/`, (req, res) => {
 app.post(`${apiPrefix}generateSimulationForSensorData`,setConnectionTimeout('10m'), function(req, res) {
 
     let queue_name = config_env.jobQueue;
-
     if("queue" in req.body) {
         queue_name = req.body.queue;
     }
