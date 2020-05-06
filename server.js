@@ -50,7 +50,9 @@ if (cluster.isMaster) {
     jwt = require('jsonwebtoken'),
     fs = require('fs'),
     shortid = require('shortid'),
+    archiver = require('archiver'),
     moment = require('moment');
+
 
     var _ = require('lodash');
     var simulation_timer = 120000 ; // 4 minutes in milliseconds
@@ -698,14 +700,8 @@ if (cluster.isMaster) {
                                 else{
                                      generateMorphedVTK(obj)
                                     .then((d)=>{
-                                        var cmd = `mkdir -p ./../users_data/${user_id}/rbf/ ; ./../MergePolyData/build/InpFromVTK -in ./../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ./../users_data/${user_id}/rbf/${obj.file_name}.vtk;`
+                                        var cmd = `mkdir -p ./../users_data/${user_id}/rbf/ ; ./../MergePolyData/build/MergePolyData -in ./../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ./../users_data/${user_id}/rbf/${obj.file_name}.vtk -abaqus ;`
                                         return executeShellCommands(cmd);
-                                    })
-                                    .then(d => {
-                                        return generateCentroidLookUpTable(obj);
-                                    })
-                                    .then(d => {
-                                        return uploadCentroidLookUpFile(obj);
                                     })
                                     .then(d => {
                                       return uploadINPFile(user_id,obj.file_name);
@@ -715,6 +711,12 @@ if (cluster.isMaster) {
                                     })
                                     .then(d => {
                                       return uploadCGValuesAndSetINPStatus(user_id, obj.file_name);
+                                    })
+                                    .then(d => {
+                                      return createMorphedVTKZip(user_id, obj.file_name);
+                                    })
+                                    .then(d => {
+                                      return uploadMorphedVTKZip(user_id, obj.file_name);
                                     })
                                     .then(d => {
                                       resolve(true);
@@ -1295,58 +1297,6 @@ function generateMorphedVTK(obj){
             console.log("MORPHED VTK <<<<<--------------\n",err);
             reject(err);
         })
-    })
-}
-
-
-function generateCentroidLookUpTable(obj){
-    return new Promise((resolve, reject) =>{
-        var cmd = `mkdir -p ./../users_data/${obj.user_cognito_id}/centroid_table/ && pvpython ./../rbf-brain/lookuptablegenerator_coarse.py --centroid ./../rbf-brain/centroid_coarse.txt --input ./../users_data/${obj.user_cognito_id}/morphed_vtk/${obj.file_name}.vtk --output ./../users_data/${obj.user_cognito_id}/centroid_table/${obj.file_name}.txt`
-        console.log(cmd);
-        executeShellCommands(cmd)
-        .then(d => {
-            console.log("CENTROID CMD POST <<<<<--------------\n",d);
-            resolve(d);
-        })
-        .catch(err => {
-            console.log("CENTROID CMD <<<<<--------------\n",err);
-            reject(err);
-        })
-    })
-}
-
-function uploadCentroidLookUpFile(obj){
-    return new Promise((resolve, reject) =>{
-        var uploadParams = {
-            Bucket: config.usersbucket,
-            Key: '', // pass key
-            Body: null, // pass file body
-        };
-
-        const params = uploadParams;
-
-        fs.readFile(`./../users_data/${obj.user_cognito_id}/centroid_table/${obj.file_name}.txt`, function (err, headBuffer) {
-            if (err) {
-                reject(err)
-            }
-            else {
-                params.Key = obj.user_cognito_id + "/profile/centroid_table/" + obj.file_name + ".txt";
-                params.Body = headBuffer;
-                // Call S3 Upload
-                s3.upload(params, (err, data) => {
-                    if (err) {
-                      console.log("FILE UPLOAD CENTROID",err);
-                        reject(err)
-                    }
-                    else {
-
-                        resolve(data);
-                    }
-                });
-
-            }
-        })
-
     })
 }
 
@@ -2123,6 +2073,68 @@ function fetchCGValues(player_id) {
         }
       })
     })
+}
+
+function uploadMorphedVTKZip(user_id, timestamp) {
+    return new Promise((resolve, reject) => {
+      var uploadParams = {
+          Bucket: config.usersbucket,
+          Key: `${user_id}/profile/morphed_vtk/combined_meshes/${timestamp}.zip`, // pass key
+          Body: null,
+      };
+      fs.readFile(`./../users_data/${user_id}/morphed_vtk/${timestamp}.zip`, function (err, headBuffer) {
+          if (err) {
+              console.log(err);
+              reject(err);
+          }
+          else {
+              uploadParams.Body = headBuffer;
+              s3.upload(uploadParams, (err, data) => {
+                  if (err) {
+                      reject(err);
+                  }
+                  else {
+                      resolve(data);
+                  }
+              });
+          }
+      })
+    })
+}
+
+function createMorphedVTKZip(user_id, timestamp) {
+  return new Promise((resolve, reject) => {
+    try {
+            //archive zip
+            var output = fs.createWriteStream(`./../users_data/${user_id}/morphed_vtk/${timestamp}.zip`);
+            var archive = archiver('zip', {
+              zlib: { level: 9 } // Sets the compression level.
+            });
+
+            output.on("close", async function () {
+                console.log(archive.pointer() + " total bytes");
+                console.log(
+                    "archiver has been finalized and the output file descriptor has closed."
+                );
+                console.log("zip file uploading");
+                resolve(true);
+            });
+            archive.on("error", function (err) {
+                console.log('error for zip ', err)
+                reject(err);
+            });
+            archive.pipe(output);
+
+            // append files from a glob pattern
+            archive.glob(`*.vtk`, { cwd : `./../users_data/${user_id}/morphed_vtk`});
+
+            archive.finalize();
+
+        } catch (error) {
+            console.log(error);
+            reject(error);
+        }
+  })
 }
 
 function addPlayerToTeamInDDB(org, team, player_id) {
