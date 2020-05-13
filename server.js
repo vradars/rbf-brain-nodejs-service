@@ -1944,6 +1944,26 @@ function updateSimulationImageToDDB(image_id, bucket_name, path, status = "compl
     })
 }
 
+function addPlayerToUsers(user_id) {
+  return new Promise((resolve, reject) => {
+    let params = {
+      TableName: "users",
+      Item: {
+        user_cognito_id: user_id,
+        is_selfie_image_uploaded: false
+      }
+    }
+    docClient.put(params, function(err, data) {
+      if(err) {
+        reject(err);
+      } else {
+        resolve(data);
+      }
+    })
+
+  })
+}
+
 function checkIfSelfiePresent(player_id) {
     return new Promise((resolve, reject) => {
         //Fetch user details from dynamodb
@@ -1959,7 +1979,16 @@ function checkIfSelfiePresent(player_id) {
             }
             else {
                 console.log("check if selfie present ", data);
-                if ((Object.keys(data).length == 0 && data.constructor === Object) || ('is_selfie_image_uploaded' in data.Item && data.Item.is_selfie_image_uploaded == false)) {
+                if ((Object.keys(data).length == 0 && data.constructor === Object)) {
+                  addPlayerToUsers(player_id)
+                  .then(data => {
+                    resolve(false);
+                  })
+                  .catch(err => {
+                    reject(err);
+                  })
+                }
+                else if (('is_selfie_image_uploaded' in data.Item && data.Item.is_selfie_image_uploaded == false) || (!data.Item.is_selfie_image_uploaded)) {
                     resolve(false);
                 }
                 else {
@@ -3009,6 +3038,8 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                             }
                             if(cg_coordinates) {
                               playerData.simulation["head-cg"] = (cg_coordinates.length == 0 )? [0, -0.3308, -0.037] : cg_coordinates.map(function (x) {return parseFloat(x)});
+                            } else {
+                              playerData.simulation["head-cg"] = [0, -0.3308, -0.037]
                             }
                             playerData["player"]["name"] = _temp_player.player_id.replace(/ /g,"-");
                             playerData["uid"] = _temp_player.player_id.split("$")[0].replace(/ /g,"-") + '_' + _temp_player.image_id;
