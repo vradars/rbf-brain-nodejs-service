@@ -619,7 +619,7 @@ if (cluster.isMaster) {
                 // Doing Post Processing on simulation
                 var timestamp = Date.now();
 
-                cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg maxstrain.dat ${user_id}-${timestamp}.png`;
+                cmd = `cd /home/ec2-user/FemTech/build/examples/ex5; ~/MergePolyData/build/MultipleViewPorts brain3.ply Br_color3.jpg output.json ${user_id}-${timestamp}.png cellcentres.txt`;
                 console.log(cmd);
                 executeShellCommands(cmd).then((data)=>{
                     uploadSimulationFile(user_id,timestamp,(err,data)=>{
@@ -700,7 +700,7 @@ if (cluster.isMaster) {
                                 else{
                                      generateMorphedVTK(obj)
                                     .then((d)=>{
-                                        var cmd = `mkdir -p ./../users_data/${user_id}/rbf/ ; ./../MergePolyData/build/MergePolyData -in ./../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ./../users_data/${user_id}/rbf/${obj.file_name}.vtk -abaqus ;`
+                                        var cmd = `mkdir -p ./../users_data/${user_id}/rbf/ ;  ./../MergePolyData/build/InpFromVTK  -in ./../users_data/${user_id}/morphed_vtk/${obj.file_name}.vtk -out ./../users_data/${user_id}/rbf/${obj.file_name}.vtk`;
                                         return executeShellCommands(cmd);
                                     })
                                     .then(d => {
@@ -775,7 +775,7 @@ if (cluster.isMaster) {
                   },
                   UpdateExpression: "set cg_coordinates = :cg, is_cg_present = :present, is_selfie_inp_uploaded = :is_selfie_inp_uploaded",
                   ExpressionAttributeValues: {
-                      ":cg": data.split(" ").map(function (x) {return Number(x).toFixed(6)}),
+                      ":cg": data.split(" ").map(function (x) {return parseFloat(x)}),
                       ":present": true,
                       ":is_selfie_inp_uploaded": true
                   },
@@ -3008,7 +3008,7 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                                 }
                             }
                             if(cg_coordinates) {
-                              playerData.simulation["head-cg"] = cg_coordinates;
+                              playerData.simulation["head-cg"] = (cg_coordinates.length == 0 )? [0, -0.3308, -0.037] : cg_coordinates.map(function (x) {return parseFloat(x)});
                             }
                             playerData["player"]["name"] = _temp_player.player_id.replace(/ /g,"-");
                             playerData["uid"] = _temp_player.player_id.split("$")[0].replace(/ /g,"-") + '_' + _temp_player.image_id;
@@ -3019,10 +3019,10 @@ app.post(`${apiPrefix}IRBFormGenerate`, function(req, res){
                                 playerData["simulation"]["angular-acceleration"] = _temp_player['angular-acceleration'];
 
                                 if(reader == 2) {
-                                    playerData["simulation"]["maximum-time"] = _temp_player.time;
+                                    playerData["simulation"]["maximum-time"] = _temp_player.time * 1000;
+                                    playerData["simulation"]["mesh-transformation"] = ["-y", "z", "-x"];
                                 } else {
-                                    playerData["simulation"]["maximum-time"] = parseFloat(_temp_player['linear-acceleration']['xt'][_temp_player['linear-acceleration']['xt'].length - 1]) / 1000;
-
+                                    playerData["simulation"]["maximum-time"] = parseFloat(_temp_player['linear-acceleration']['xt'][_temp_player['linear-acceleration']['xt'].length - 1]) ;
                                 }
                             } else {
 
